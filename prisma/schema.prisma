@@ -1,21 +1,241 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
-    provider = "prisma-client-js"
-    output   = "../generated/prisma"
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
 }
 
 datasource db {
-    provider = "sqlite"
-    url      = env("DATABASE_URL")
+  provider = "sqlite"
 }
 
-model Post {
-    id        Int      @id @default(autoincrement())
-    name      String
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
+enum SyncRunStatus {
+  IDLE
+  RUNNING
+  SUCCESS
+  PARTIAL
+  FAILED
+  CANCELLED
+}
 
-    @@index([name])
+enum SyncTrigger {
+  MANUAL
+  SCHEDULED
+  METADATA_REFRESH
+}
+
+enum GoogleDeviceFlowStatus {
+  PENDING
+  APPROVED
+  EXPIRED
+  FAILED
+}
+
+model AppSetting {
+  id                 String        @id @default("app")
+  globalExtensionsCsv String       @default("pdf")
+  scheduleEnabled    Boolean       @default(false)
+  scheduleTime       String        @default("02:00")
+  scheduleTimezone   String        @default("Europe/Berlin")
+  activeRunId        String?
+  activeRunStatus    SyncRunStatus @default(IDLE)
+  activeRunCourseId  Int?
+  activeRunCourseName String?
+  activeRunMessage   String?
+  activeRunProcessed Int           @default(0)
+  cancelRequestedAt  DateTime?
+  lastError          String?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+}
+
+model Secret {
+  key       String   @id
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model MoodleConnection {
+  id               String   @id @default("moodle")
+  baseUrl          String   @default("https://moodle.dhbw.de/")
+  organization     String   @default("dh-karlsruhe.de")
+  username         String?
+  credentialsSaved Boolean  @default(false)
+  hasToken         Boolean  @default(false)
+  tokenUpdatedAt   DateTime?
+  lastTestedAt     DateTime?
+  lastSuccessAt    DateTime?
+  lastError        String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model GoogleConnection {
+  id                 String   @id @default("google")
+  clientId           String?
+  clientSecretSaved  Boolean  @default(false)
+  connectedEmail     String?
+  hasRefreshToken    Boolean  @default(false)
+  driveRootFolderId  String?
+  driveRootFolderUrl String?
+  lastTestedAt       DateTime?
+  lastSuccessAt      DateTime?
+  lastError          String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model GoogleDeviceFlow {
+  id              String                 @id @default("google-device-flow")
+  deviceCode      String
+  userCode        String
+  verificationUrl String
+  intervalSeconds Int
+  expiresAt       DateTime
+  status          GoogleDeviceFlowStatus @default(PENDING)
+  errorMessage    String?
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+}
+
+model MoodleCourse {
+  id                    Int              @id
+  fullName              String
+  shortName             String
+  visible               Boolean?
+  lastMetadataRefreshAt DateTime?
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+  sections              MoodleSection[]
+  modules               MoodleModule[]
+  files                 MoodleFile[]
+  syncConfig            CourseSyncConfig?
+  driveFolder           DriveFolder?
+
+  @@index([shortName])
+}
+
+model MoodleSection {
+  id             String             @id
+  courseId       Int
+  moodleSectionId Int?
+  sectionIndex   Int
+  name           String
+  visible        Boolean?
+  userVisible    Boolean?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  course         MoodleCourse       @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  modules        MoodleModule[]
+  files          MoodleFile[]
+  syncConfig     SectionSyncConfig?
+
+  @@unique([courseId, sectionIndex])
+  @@index([courseId])
+}
+
+model MoodleModule {
+  id          Int           @id
+  courseId    Int
+  sectionId   String
+  name        String
+  moduleType  String
+  visible     Boolean?
+  userVisible Boolean?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  course      MoodleCourse  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  section     MoodleSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  files       MoodleFile[]
+
+  @@index([courseId])
+  @@index([sectionId])
+}
+
+model MoodleFile {
+  fileKey      String        @id
+  courseId      Int
+  sectionId     String
+  moduleId      Int
+  filename      String
+  filepath      String?
+  fileUrl       String
+  fileSize      Int
+  timeModified  Int
+  mimeType      String?
+  sectionName   String
+  moduleName    String
+  lastSeenAt    DateTime
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  course        MoodleCourse @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  section       MoodleSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  module        MoodleModule  @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  syncedFile    SyncedFile?
+
+  @@index([courseId])
+  @@index([sectionId])
+  @@index([moduleId])
+}
+
+model CourseSyncConfig {
+  courseId             Int           @id
+  enabled              Boolean       @default(false)
+  useGlobalExtensions  Boolean       @default(true)
+  extensionsCsv        String        @default("")
+  lastMatchingFileCount Int          @default(0)
+  lastSyncStatus       SyncRunStatus?
+  lastSyncAt           DateTime?
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+  course               MoodleCourse  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+}
+
+model SectionSyncConfig {
+  sectionId  String        @id
+  selected   Boolean       @default(true)
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+  section    MoodleSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+}
+
+model DriveFolder {
+  courseId       Int          @id
+  folderId       String
+  folderUrl      String
+  createdAt      DateTime     @default(now())
+  lastVerifiedAt DateTime     @default(now())
+  course         MoodleCourse @relation(fields: [courseId], references: [id], onDelete: Cascade)
+}
+
+model SyncedFile {
+  fileKey            String     @id
+  driveFileId        String
+  driveFileName      String
+  sha256             String
+  fileSize           Int
+  moodleTimeModified Int
+  syncedAt           DateTime
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+  file               MoodleFile @relation(fields: [fileKey], references: [fileKey], onDelete: Cascade)
+
+  @@index([driveFileId])
+}
+
+model SyncRun {
+  id              String       @id
+  trigger         SyncTrigger
+  status          SyncRunStatus
+  scopeCourseId   Int?
+  startedAt       DateTime     @default(now())
+  finishedAt      DateTime?
+  filesDiscovered Int          @default(0)
+  filesUploaded   Int          @default(0)
+  filesUpdated    Int          @default(0)
+  filesSkipped    Int          @default(0)
+  filesFailed     Int          @default(0)
+  logText         String       @default("")
+  errorMessage    String?
+
+  @@index([status, startedAt])
 }

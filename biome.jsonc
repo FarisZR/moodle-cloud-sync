@@ -1,6 +1,12 @@
 {
 	"files": {
-		"includes": ["**", "!generated", "!node_modules", "!.next"]
+		"includes": [
+			"**",
+			"!generated",
+			"!node_modules",
+			"!.next",
+			"!src/generated"
+		]
 	},
 	"$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
 	"root": true,
