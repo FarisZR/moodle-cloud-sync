@@ -20,7 +20,7 @@
 		"start": "next start",
 		"test": "vitest run --coverage",
 		"test:watch": "vitest",
-		"verify:course-sync": "tsx scripts/verify-course-sync-sync.ts",
+		"verify:course-sync": "tsx scripts/verify-course-sync.ts",
 		"typecheck": "tsc --noEmit",
 		"verify": "pnpm check && pnpm typecheck && pnpm test"
 	},

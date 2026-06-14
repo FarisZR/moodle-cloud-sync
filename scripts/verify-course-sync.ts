@@ -79,8 +79,16 @@ async function main() {
 		where: {
 			OR: [
 				{ id: 44 },
-				{ fullName: { contains: "KA-Alle aktuellen Kurse der Informatik" } },
-				{ shortName: { contains: "KA-Alle aktuellen Kurse der Informatik" } },
+				{
+					fullName: {
+						contains: "KA-Alle aktuellen Kurse der Informatik",
+					},
+				},
+				{
+					shortName: {
+						contains: "KA-Alle aktuellen Kurse der Informatik",
+					},
+				},
 			],
 		},
 		include: { sections: true },
@@ -99,12 +107,12 @@ async function main() {
 	});
 
 	for (const section of course.sections) {
-		const selected = section.name === "Skript" || section.name === "Übungen";
+		const selected = section.name === "Diverse Unterlagen";
 		await updateSectionSelection(db, section.id, selected);
 	}
 
 	const result = await runSync(db, secretStore, env, {
-		runIdFactory: () => `verify-course-sync-sync-${randomUUID()}`,
+		runIdFactory: () => `verify-course-sync-${randomUUID()}`,
 		scopeCourseId: course.id,
 	});
 

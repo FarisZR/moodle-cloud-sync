@@ -25,7 +25,7 @@ It will:
 2. perform the real DHBW Student login flow
 3. refresh Moodle metadata
 4. enable `KA-Alle aktuellen Kurse der Informatik` (course id `44` when present)
-5. select only `Skript` and `Übungen`
+5. select only `Diverse Unterlagen`
 6. run a course-scoped sync and print the summary
 
 Persistent runtime data is stored under `APP_DATA_DIR`, which defaults to `./data`.
