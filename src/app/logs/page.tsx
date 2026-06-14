@@ -13,6 +13,8 @@ import {
 import { loadLogsPageData } from "~/server/app-state";
 import { db } from "~/server/db";
 
+export const dynamic = "force-dynamic";
+
 function formatDate(value: Date) {
 	return new Intl.DateTimeFormat("en-GB", {
 		dateStyle: "medium",

@@ -27,6 +27,8 @@ import { cn } from "~/lib/utils";
 import { loadCoursesPageData } from "~/server/app-state";
 import { db } from "~/server/db";
 
+export const dynamic = "force-dynamic";
+
 function splitExtensions(value: string) {
 	return value
 		.split(",")

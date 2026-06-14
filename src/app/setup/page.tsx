@@ -36,6 +36,8 @@ import { Label } from "~/components/ui/label";
 import { loadSetupPageData } from "~/server/app-state";
 import { db } from "~/server/db";
 
+export const dynamic = "force-dynamic";
+
 function formatDate(value: Date | null | undefined) {
 	if (!value) {
 		return "Not yet";

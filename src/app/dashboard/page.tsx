@@ -19,6 +19,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { loadDashboardPageData } from "~/server/app-state";
 import { db } from "~/server/db";
 
+export const dynamic = "force-dynamic";
+
 function formatDate(value: Date | null | undefined) {
 	if (!value) {
 		return "Not yet";
