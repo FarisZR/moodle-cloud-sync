@@ -7,8 +7,6 @@ import {
 	Info,
 	Layers3,
 	RefreshCcw,
-	Search,
-	SlidersHorizontal,
 	X,
 } from "lucide-react";
 
@@ -18,11 +16,11 @@ import {
 	updateCourseConfigAction,
 	updateSectionSelectionAction,
 } from "~/app/actions";
+import { CourseSearchControls } from "~/app/courses/course-search";
 import { CopyButton, ExtensionEditor } from "~/app/extension-controls";
 import { AutoSubmitCheckbox, PendingButton } from "~/app/form-feedback";
 import { PageHeader } from "~/app/page-header";
 import { Card, CardContent } from "~/components/ui/card";
-import { Input } from "~/components/ui/input";
 import { cn } from "~/lib/utils";
 import { loadCoursesPageData } from "~/server/app-state";
 import { db } from "~/server/db";
@@ -128,27 +126,7 @@ export default async function CoursesPage() {
 			<div className="grid gap-5 xl:grid-cols-[1fr_300px]">
 				<div className="min-w-0 space-y-4">
 					<div className="grid gap-3 md:grid-cols-[280px_160px_1fr_auto] md:items-center">
-						<label className="relative">
-							<Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-							<Input
-								className="h-10 bg-white pl-9"
-								placeholder="Search courses..."
-								type="search"
-							/>
-						</label>
-						<button
-							className="inline-flex h-10 items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-3 font-medium text-primary text-sm shadow-sm"
-							type="button"
-						>
-							<span className="inline-flex items-center gap-2">
-								<SlidersHorizontal className="size-4" />
-								All courses
-							</span>
-							<ChevronDown className="size-4" />
-						</button>
-						<p className="text-center font-medium text-muted-foreground text-sm md:text-left">
-							{courses.length} courses discovered
-						</p>
+						<CourseSearchControls totalCourses={courses.length} />
 						<form action={startSyncAction}>
 							<PendingButton className="h-10 px-5" pendingLabel="Starting...">
 								<RefreshCcw className="size-4" />
@@ -158,6 +136,15 @@ export default async function CoursesPage() {
 					</div>
 
 					<div className="space-y-2">
+						<Card
+							className="rounded-lg border-slate-200 bg-white shadow-sm"
+							data-course-search-empty
+							hidden
+						>
+							<CardContent className="py-10 text-center text-muted-foreground">
+								No courses match your search.
+							</CardContent>
+						</Card>
 						{courses.length === 0 ? (
 							<Card className="rounded-lg border-slate-200 bg-white shadow-sm">
 								<CardContent className="py-10 text-center text-muted-foreground">
@@ -190,6 +177,7 @@ export default async function CoursesPage() {
 												isExpanded &&
 													"shadow-[0_12px_32px_rgba(15,23,42,0.08)]",
 											)}
+											data-course-search={`${course.shortName} ${course.fullName}`}
 											key={course.id}
 										>
 											<div className="grid gap-3 px-4 py-3 lg:grid-cols-[1fr_auto] lg:items-center">
