@@ -19,6 +19,7 @@ import {
 	startGoogleDeviceFlowAction,
 	testMoodleConnectionAction,
 } from "~/app/actions";
+import { ExtensionEditor } from "~/app/extension-controls";
 import { PendingButton, SecretInput } from "~/app/form-feedback";
 import { PageHeader } from "~/app/page-header";
 import { StatusPill } from "~/app/status-pill";
@@ -32,7 +33,6 @@ import {
 } from "~/components/ui/card";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
-import { Textarea } from "~/components/ui/textarea";
 import { loadSetupPageData } from "~/server/app-state";
 import { db } from "~/server/db";
 
@@ -432,17 +432,20 @@ export default async function SetupPage({ searchParams }: SetupPageProps = {}) {
 				<CardContent>
 					<form
 						action={saveScheduleAction}
-						className="grid gap-4 lg:grid-cols-[1fr_180px_220px]"
+						className="grid gap-5 lg:grid-cols-[1fr_190px_240px]"
 					>
-						<div className="space-y-1.5 lg:col-span-3">
-							<Label htmlFor="global-extensions">
-								Global allowed extensions
-							</Label>
-							<Textarea
+						<div className="space-y-3 rounded-lg border border-slate-200 p-4 lg:col-span-3">
+							<div>
+								<p className="font-semibold text-sm">
+									Global allowed extensions
+								</p>
+								<p className="mt-1 text-muted-foreground text-xs">
+									These file types are used by courses set to global file types.
+								</p>
+							</div>
+							<ExtensionEditor
 								defaultValue={data.app.globalExtensionsCsv}
-								id="global-extensions"
 								name="globalExtensions"
-								placeholder="pdf, pptx, docx"
 							/>
 						</div>
 						<div className="flex items-center gap-2 pt-6">

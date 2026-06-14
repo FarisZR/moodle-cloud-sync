@@ -1,11 +1,12 @@
 "use client";
 
 import { Eye, EyeOff, LoaderCircle } from "lucide-react";
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
+import { Switch } from "~/components/ui/switch";
 import { cn } from "~/lib/utils";
 
 type PendingButtonProps = Omit<
@@ -100,29 +101,59 @@ type AutoSubmitCheckboxProps = React.ComponentProps<"input"> & {
 };
 
 export function AutoSubmitCheckbox({
+	"aria-label": ariaLabel,
 	className,
+	defaultChecked,
+	disabled,
 	mode = "checkbox",
+	name,
 	onChange,
+	required,
+	value,
 	...props
 }: AutoSubmitCheckboxProps) {
 	const { pending } = useFormStatus();
+	const switchInputRef = useRef<HTMLInputElement>(null);
+
+	if (mode === "switch") {
+		return (
+			<Switch
+				aria-label={ariaLabel}
+				className={cn("data-checked:bg-emerald-500", className)}
+				defaultChecked={Boolean(defaultChecked)}
+				disabled={pending || disabled}
+				inputRef={switchInputRef}
+				name={name}
+				onCheckedChange={() => {
+					window.requestAnimationFrame(() => {
+						switchInputRef.current?.form?.requestSubmit();
+					});
+				}}
+				required={required}
+				value={typeof value === "string" ? value : undefined}
+			/>
+		);
+	}
 
 	return (
 		<input
 			{...props}
+			aria-label={ariaLabel}
 			className={cn(
-				mode === "switch"
-					? "h-5 w-9 cursor-pointer appearance-none rounded-full border border-slate-300 bg-slate-200 transition before:block before:size-4 before:translate-x-0 before:rounded-full before:bg-white before:shadow-sm before:transition checked:border-emerald-500 checked:bg-emerald-500 checked:before:translate-x-4 disabled:cursor-not-allowed disabled:opacity-60"
-					: "size-4 cursor-pointer rounded border-slate-300 accent-blue-600 disabled:cursor-not-allowed disabled:opacity-60",
+				"size-4 cursor-pointer rounded border-slate-300 accent-blue-600 disabled:cursor-not-allowed disabled:opacity-60",
 				pending && "opacity-60",
 				className,
 			)}
-			disabled={pending || props.disabled}
+			defaultChecked={defaultChecked}
+			disabled={pending || disabled}
+			name={name}
 			onChange={(event) => {
 				onChange?.(event);
 				event.currentTarget.form?.requestSubmit();
 			}}
+			required={required}
 			type="checkbox"
+			value={value}
 		/>
 	);
 }
