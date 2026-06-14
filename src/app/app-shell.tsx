@@ -1,6 +1,13 @@
 "use client";
 
-import { BookOpen, FolderSync, House, Logs, Settings } from "lucide-react";
+import {
+	BookOpen,
+	ExternalLink,
+	FolderSync,
+	House,
+	Logs,
+	Settings,
+} from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -31,7 +38,7 @@ export function AppShell({ children }: AppShellProps) {
 	return (
 		<div className="min-h-screen bg-[linear-gradient(180deg,oklch(0.985_0.006_251)_0%,oklch(0.952_0.014_251)_100%)] text-foreground">
 			<div className="grid min-h-screen lg:grid-cols-[200px_1fr]">
-				<aside className="border-slate-200 border-b bg-sidebar px-4 py-4 lg:border-r lg:border-b-0">
+				<aside className="flex flex-col border-slate-200 border-b bg-sidebar px-4 py-4 lg:border-r lg:border-b-0">
 					<div className="flex items-center gap-2 px-1">
 						<div className="flex size-8 items-center justify-center text-primary">
 							<FolderSync className="size-6 fill-primary/10" />
@@ -63,14 +70,17 @@ export function AppShell({ children }: AppShellProps) {
 						})}
 					</nav>
 
-					<div className="mt-24 hidden lg:block">
-						<div className="rounded-md border border-slate-200 bg-white px-4 py-3 text-center shadow-sm">
-							<div className="mx-auto mb-2 flex w-fit items-center gap-2 text-[12px] text-slate-700">
-								<span className="size-2 rounded-full bg-emerald-500" />
-								Self-hosted
-							</div>
-							<p className="text-muted-foreground text-xs">v1.0.0</p>
-						</div>
+					<div className="mt-8 hidden lg:mt-auto lg:block">
+						<a
+							className="flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2.5 font-medium text-[12px] text-slate-700 shadow-sm transition hover:border-slate-300 hover:text-sidebar-foreground"
+							href="https://github.com/FarisZR/moodle-cloud-sync"
+							rel="noreferrer"
+							target="_blank"
+							title="FarisZR/Moodle Cloud Sync"
+						>
+							<ExternalLink className="size-4" strokeWidth={1.9} />
+							<span className="truncate">FarisZR/Moodle Cloud Sync</span>
+						</a>
 					</div>
 				</aside>
 
