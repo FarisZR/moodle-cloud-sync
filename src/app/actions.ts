@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { SECRET_PLACEHOLDER } from "~/lib/secret-placeholder";
 import { startMetadataRefreshTask, startSyncTask } from "~/server/app-state";
 import { db } from "~/server/db";
 import { readEnv } from "~/server/env";
@@ -9,6 +10,7 @@ import {
 	pollGoogleDeviceFlow,
 	saveGoogleClientCredentials,
 	startGoogleDeviceFlow,
+	testGoogleClientCredentials,
 } from "~/server/google/service";
 import {
 	saveMoodleCredentials,
@@ -18,6 +20,7 @@ import { createSecretStore } from "~/server/secrets";
 import {
 	clearGoogleConnection,
 	clearMoodleCredentials,
+	SECRET_KEYS,
 	saveGlobalExtensions,
 	saveScheduleSettings,
 	updateCourseSyncConfig,
@@ -36,12 +39,29 @@ function getErrorMessage(error: unknown) {
 	return error instanceof Error ? error.message : "Unexpected error";
 }
 
+async function resolveSubmittedSecret(
+	secretStore: Awaited<ReturnType<typeof createSecretStore>>,
+	key: string,
+	value: string,
+	fallback?: string,
+) {
+	if (value === SECRET_PLACEHOLDER) {
+		return fallback ?? (await secretStore.get(key)) ?? "";
+	}
+
+	return value;
+}
+
 export async function saveMoodleCredentialsAction(formData: FormData) {
 	const secretStore = await createSecretStore(db, readEnv());
 	await saveMoodleCredentials(db, secretStore, {
 		baseUrl: String(formData.get("baseUrl") ?? ""),
 		organization: String(formData.get("organization") ?? ""),
-		password: String(formData.get("password") ?? ""),
+		password: await resolveSubmittedSecret(
+			secretStore,
+			SECRET_KEYS.moodlePassword,
+			String(formData.get("password") ?? ""),
+		),
 		username: String(formData.get("username") ?? ""),
 	});
 	revalidateApp();
@@ -65,12 +85,42 @@ export async function testMoodleConnectionAction() {
 }
 
 export async function saveGoogleClientCredentialsAction(formData: FormData) {
-	const secretStore = await createSecretStore(db, readEnv());
+	const env = readEnv();
+	const secretStore = await createSecretStore(db, env);
 	await saveGoogleClientCredentials(db, secretStore, {
 		clientId: String(formData.get("clientId") ?? ""),
-		clientSecret: String(formData.get("clientSecret") ?? ""),
+		clientSecret: await resolveSubmittedSecret(
+			secretStore,
+			SECRET_KEYS.googleClientSecret,
+			String(formData.get("clientSecret") ?? ""),
+			env.googleClientSecret,
+		),
 	});
 	revalidateApp();
+}
+
+export async function testGoogleClientCredentialsAction(formData: FormData) {
+	const env = readEnv();
+	const secretStore = await createSecretStore(db, env);
+	const clientId = String(formData.get("clientId") ?? "");
+	const clientSecret = await resolveSubmittedSecret(
+		secretStore,
+		SECRET_KEYS.googleClientSecret,
+		String(formData.get("clientSecret") ?? ""),
+		env.googleClientSecret,
+	);
+	let target = "/setup?googleTest=success";
+	try {
+		await testGoogleClientCredentials({ clientId, clientSecret });
+		await saveGoogleClientCredentials(db, secretStore, {
+			clientId,
+			clientSecret,
+		});
+	} catch (error) {
+		target = `/setup?googleTest=error&googleMessage=${encodeURIComponent(getErrorMessage(error))}`;
+	}
+	revalidateApp();
+	redirect(target);
 }
 
 export async function clearGoogleConnectionAction() {

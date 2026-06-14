@@ -56,6 +56,7 @@ const setupData = {
 	},
 	google: {
 		clientId: "ui-client-id",
+		clientSecretSaved: true,
 		connectedEmail: "student@example.test",
 		hasRefreshToken: true,
 	},
@@ -145,6 +146,8 @@ describe("app pages", () => {
 
 		expect(html).toContain("Moodle Settings");
 		expect(html).toContain("Google Drive Setup");
+		expect(html).toContain("Test Connection");
+		expect(html).toContain("********");
 		expect(html).not.toContain("ABCD-EFGH");
 	});
 
@@ -153,6 +156,7 @@ describe("app pages", () => {
 		const html = renderToStaticMarkup(
 			await SetupPage({
 				searchParams: Promise.resolve({
+					googleTest: "success",
 					googleVerify: "pending",
 					moodleTest: "success",
 				}),
@@ -160,6 +164,7 @@ describe("app pages", () => {
 		);
 
 		expect(html).toContain("Moodle connection works");
+		expect(html).toContain("Google client credentials work");
 		expect(html).toContain("Google approval is still pending");
 	});
 

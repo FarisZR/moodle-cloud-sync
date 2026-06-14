@@ -7,6 +7,7 @@ import {
 	pollGoogleDeviceFlow,
 	saveGoogleClientCredentials,
 	startGoogleDeviceFlow,
+	testGoogleClientCredentials,
 	withGoogleAccessToken,
 } from "~/server/google/service";
 import { createSecretStore } from "~/server/secrets";
@@ -55,6 +56,33 @@ describe("google service", () => {
 		expect(await secretStore.get(SECRET_KEYS.googleClientSecret)).toBe(
 			"ui-client-secret",
 		);
+	});
+
+	it("tests supplied google client credentials", async () => {
+		const testClientCredentials = vi.fn(async () => undefined);
+		await testGoogleClientCredentials(
+			{
+				clientId: " ui-client-id ",
+				clientSecret: "ui-client-secret",
+			},
+			() => ({ testClientCredentials }),
+		);
+
+		expect(testClientCredentials).toHaveBeenCalledWith({
+			clientId: "ui-client-id",
+			clientSecret: "ui-client-secret",
+		});
+	});
+
+	it("fails google client credential test when values are incomplete", async () => {
+		await expect(
+			testGoogleClientCredentials(
+				{ clientId: "", clientSecret: "ui-client-secret" },
+				() => ({
+					testClientCredentials: vi.fn(async () => undefined),
+				}),
+			),
+		).rejects.toThrow("Google client credentials are incomplete");
 	});
 
 	it("fails to start when google credentials are missing", async () => {

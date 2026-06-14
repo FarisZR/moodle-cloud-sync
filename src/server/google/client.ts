@@ -231,6 +231,37 @@ export function createGoogleDriveClient(
 				tokenType: payload.token_type,
 			};
 		},
+		testClientCredentials: async (input: {
+			clientId: string;
+			clientSecret: string;
+		}) => {
+			const response = await fetchImpl("https://oauth2.googleapis.com/token", {
+				body: new URLSearchParams({
+					client_id: input.clientId,
+					client_secret: input.clientSecret,
+					grant_type: "refresh_token",
+					refresh_token: "moodle-cloud-sync-credential-test",
+				}),
+				headers: { "content-type": "application/x-www-form-urlencoded" },
+				method: "POST",
+			});
+			const payload = (await response.json()) as {
+				error?: string;
+				error_description?: string;
+			};
+
+			if (payload.error === "invalid_grant") {
+				return;
+			}
+
+			if (!response.ok || payload.error) {
+				throw new Error(
+					payload.error_description ??
+						payload.error ??
+						"Google client credential test failed",
+				);
+			}
+		},
 		requestDeviceCode: async (input: { clientId: string; scope?: string }) => {
 			const response = await fetchImpl(
 				"https://oauth2.googleapis.com/device/code",

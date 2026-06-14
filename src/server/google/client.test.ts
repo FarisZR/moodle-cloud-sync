@@ -305,4 +305,46 @@ describe("google drive client", () => {
 			}),
 		).rejects.toThrow("Google token refresh failed");
 	});
+
+	it("tests client credentials without starting device flow", async () => {
+		const fetchMock = vi.fn(
+			async (_input: RequestInfo | URL, init?: RequestInit) => {
+				expect(String(init?.body)).toContain("client_id=client-id");
+				expect(String(init?.body)).toContain("client_secret=client-secret");
+				return new Response(JSON.stringify({ error: "invalid_grant" }), {
+					status: 400,
+				});
+			},
+		);
+		const client = createGoogleDriveClient({ fetch: fetchMock });
+
+		await expect(
+			client.testClientCredentials({
+				clientId: "client-id",
+				clientSecret: "client-secret",
+			}),
+		).resolves.toBeUndefined();
+	});
+
+	it("rejects invalid google client credentials", async () => {
+		const client = createGoogleDriveClient({
+			fetch: vi.fn(
+				async () =>
+					new Response(
+						JSON.stringify({
+							error: "invalid_client",
+							error_description: "Unauthorized client",
+						}),
+						{ status: 401 },
+					),
+			),
+		});
+
+		await expect(
+			client.testClientCredentials({
+				clientId: "client-id",
+				clientSecret: "wrong-secret",
+			}),
+		).rejects.toThrow("Unauthorized client");
+	});
 });

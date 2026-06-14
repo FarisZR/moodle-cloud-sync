@@ -44,6 +44,13 @@ type GoogleDeviceCodeClient = {
 	}>;
 };
 
+type GoogleCredentialTestClient = {
+	testClientCredentials(input: {
+		clientId: string;
+		clientSecret: string;
+	}): Promise<void>;
+};
+
 type GoogleDeviceFlowPollResult =
 	| { status: "pending" }
 	| { status: "slow_down" }
@@ -89,6 +96,23 @@ export async function saveGoogleClientCredentials(
 	});
 
 	await secretStore.set(SECRET_KEYS.googleClientSecret, input.clientSecret);
+}
+
+export async function testGoogleClientCredentials<
+	TClient extends GoogleCredentialTestClient,
+>(
+	input: { clientId: string; clientSecret: string },
+	createClient: () => TClient = () =>
+		createGoogleDriveClient() as unknown as TClient,
+) {
+	if (!(input.clientId.trim() && input.clientSecret)) {
+		throw new Error("Google client credentials are incomplete");
+	}
+
+	await createClient().testClientCredentials({
+		clientId: input.clientId.trim(),
+		clientSecret: input.clientSecret,
+	});
 }
 
 export async function startGoogleDeviceFlow(

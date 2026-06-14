@@ -17,6 +17,7 @@ import {
 	saveMoodleCredentialsAction,
 	saveScheduleAction,
 	startGoogleDeviceFlowAction,
+	testGoogleClientCredentialsAction,
 	testMoodleConnectionAction,
 } from "~/app/actions";
 import { ExtensionEditor } from "~/app/extension-controls";
@@ -33,8 +34,10 @@ import {
 } from "~/components/ui/card";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
+import { SECRET_PLACEHOLDER } from "~/lib/secret-placeholder";
 import { loadSetupPageData } from "~/server/app-state";
 import { db } from "~/server/db";
+import { readEnv } from "~/server/env";
 
 export const dynamic = "force-dynamic";
 
@@ -182,9 +185,33 @@ function getGoogleVerifyFeedback(
 	return null;
 }
 
+function getGoogleTestFeedback(
+	params: Awaited<SetupPageProps["searchParams"]>,
+) {
+	if (params?.googleTest === "success") {
+		return {
+			description: "Google accepted the client ID and client secret.",
+			status: "success" as const,
+			title: "Google client credentials work",
+		};
+	}
+
+	if (params?.googleTest === "error") {
+		return {
+			description:
+				params.googleMessage ?? "Google rejected the client credentials.",
+			status: "error" as const,
+			title: "Google client test failed",
+		};
+	}
+
+	return null;
+}
+
 type SetupPageProps = {
 	searchParams?: Promise<{
 		googleMessage?: string;
+		googleTest?: string;
 		googleVerify?: string;
 		moodleMessage?: string;
 		moodleTest?: string;
@@ -193,11 +220,17 @@ type SetupPageProps = {
 
 export default async function SetupPage({ searchParams }: SetupPageProps = {}) {
 	const data = await loadSetupPageData(db);
+	const env = readEnv();
 	const params = await searchParams;
 	const googleDeviceFlow = data.google.hasRefreshToken
 		? null
 		: data.googleDeviceFlow;
+	const googleClientId = env.googleClientId ?? data.google.clientId ?? "";
+	const googleSecretSaved = Boolean(
+		env.googleClientSecret || data.google.clientSecretSaved,
+	);
 	const moodleTestFeedback = getMoodleTestFeedback(params);
+	const googleTestFeedback = getGoogleTestFeedback(params);
 	const googleVerifyFeedback = getGoogleVerifyFeedback(params);
 
 	return (
@@ -263,6 +296,9 @@ export default async function SetupPage({ searchParams }: SetupPageProps = {}) {
 								<Label htmlFor="moodle-password">Password</Label>
 								<SecretInput
 									autoComplete="current-password"
+									defaultValue={
+										data.moodle.credentialsSaved ? SECRET_PLACEHOLDER : ""
+									}
 									id="moodle-password"
 									name="password"
 									required
@@ -326,7 +362,7 @@ export default async function SetupPage({ searchParams }: SetupPageProps = {}) {
 								<Label htmlFor="google-client-id">Client ID</Label>
 								<Input
 									autoComplete="off"
-									defaultValue={data.google.clientId ?? ""}
+									defaultValue={googleClientId}
 									id="google-client-id"
 									name="clientId"
 									required
@@ -336,16 +372,27 @@ export default async function SetupPage({ searchParams }: SetupPageProps = {}) {
 								<Label htmlFor="google-client-secret">Client Secret</Label>
 								<SecretInput
 									autoComplete="off"
+									defaultValue={googleSecretSaved ? SECRET_PLACEHOLDER : ""}
 									id="google-client-secret"
 									name="clientSecret"
 									required
 									revealedLabel="Google client secret"
 								/>
 							</div>
-							<PendingButton pendingLabel="Saving...">
-								<LockKeyhole className="size-4" />
-								Save Google Client
-							</PendingButton>
+							<div className="flex flex-wrap gap-2">
+								<PendingButton pendingLabel="Saving...">
+									<LockKeyhole className="size-4" />
+									Save Google Client
+								</PendingButton>
+								<PendingButton
+									formAction={testGoogleClientCredentialsAction}
+									pendingLabel="Testing..."
+									variant="outline"
+								>
+									<ShieldCheck className="size-4" />
+									Test Connection
+								</PendingButton>
+							</div>
 						</form>
 
 						<div className="flex flex-wrap gap-2">
@@ -353,11 +400,6 @@ export default async function SetupPage({ searchParams }: SetupPageProps = {}) {
 								<PendingButton pendingLabel="Starting...">
 									<Link2 className="size-4" />
 									Connect Google Drive
-								</PendingButton>
-							</form>
-							<form action={pollGoogleDeviceFlowAction}>
-								<PendingButton pendingLabel="Checking..." variant="outline">
-									Verify Device Flow
 								</PendingButton>
 							</form>
 							<form action={clearGoogleConnectionAction}>
@@ -369,6 +411,9 @@ export default async function SetupPage({ searchParams }: SetupPageProps = {}) {
 								</PendingButton>
 							</form>
 						</div>
+						{googleTestFeedback ? (
+							<ResultAlert {...googleTestFeedback} />
+						) : null}
 						{googleVerifyFeedback ? (
 							<ResultAlert {...googleVerifyFeedback} />
 						) : null}
