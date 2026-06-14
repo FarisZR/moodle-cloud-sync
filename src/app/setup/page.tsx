@@ -73,6 +73,9 @@ function SavedNotice({
 
 export default async function SetupPage() {
 	const data = await loadSetupPageData(db);
+	const googleDeviceFlow = data.google.hasRefreshToken
+		? null
+		: data.googleDeviceFlow;
 
 	return (
 		<div className="space-y-5">
@@ -241,7 +244,7 @@ export default async function SetupPage() {
 							</form>
 						</div>
 
-						{data.googleDeviceFlow ? (
+						{googleDeviceFlow ? (
 							<div className="space-y-3 rounded-lg border border-blue-100 bg-blue-50 p-4 text-blue-950 text-sm">
 								<p className="font-semibold">Device Flow (Recommended)</p>
 								<div className="grid gap-3">
@@ -254,7 +257,7 @@ export default async function SetupPage() {
 												Enter this code on the Google device login page.
 											</p>
 											<p className="mt-2 rounded-md border border-blue-200 bg-white px-4 py-2 text-center font-semibold text-2xl text-primary tracking-[0.16em]">
-												{data.googleDeviceFlow.userCode}
+												{googleDeviceFlow.userCode}
 											</p>
 										</div>
 									</div>
@@ -269,12 +272,12 @@ export default async function SetupPage() {
 											</p>
 											<a
 												className="mt-2 flex items-center justify-between gap-3 rounded-md border border-blue-200 bg-white px-3 py-2 font-medium text-primary text-xs hover:underline"
-												href={data.googleDeviceFlow.verificationUrl}
+												href={googleDeviceFlow.verificationUrl}
 												rel="noreferrer noopener"
 												target="_blank"
 											>
 												<span className="truncate">
-													{data.googleDeviceFlow.verificationUrl}
+													{googleDeviceFlow.verificationUrl}
 												</span>
 												<ExternalLink className="size-3.5 shrink-0" />
 											</a>

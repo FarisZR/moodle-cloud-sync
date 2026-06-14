@@ -82,6 +82,29 @@ describe("app state", () => {
 		expect(logs.runs).toHaveLength(1);
 	});
 
+	it("hides stale google device flow after drive is connected", async () => {
+		await prisma.googleConnection.update({
+			data: {
+				connectedEmail: "student@example.test",
+				hasRefreshToken: true,
+			},
+			where: { id: "google" },
+		});
+		await prisma.googleDeviceFlow.create({
+			data: {
+				deviceCode: "device-code",
+				userCode: "ABCD-EFGH",
+				verificationUrl: "https://www.google.com/device",
+				intervalSeconds: 5,
+				expiresAt: new Date(Date.now() + 60_000),
+			},
+		});
+
+		const setup = await loadSetupPageData(prisma);
+
+		expect(setup.googleDeviceFlow).toBeNull();
+	});
+
 	it("starts background sync and metadata tasks", async () => {
 		const env = readEnv({
 			APP_DATA_DIR: path.join(databaseDir, "data"),

@@ -11,8 +11,8 @@ import {
 	loadLogsSnapshot,
 } from "~/server/store";
 import { runMetadataRefresh, runSync } from "~/server/sync/service";
-import { GoogleDeviceFlowStatus } from "../generated/prisma/enums";
 import type { PrismaClient } from "../generated/prisma/client";
+import { GoogleDeviceFlowStatus } from "../generated/prisma/enums";
 
 type BackgroundTaskMap = Map<string, Promise<unknown>>;
 

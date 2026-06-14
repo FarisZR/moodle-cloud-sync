@@ -171,6 +171,11 @@ describe("google service", () => {
 				})
 			).driveRootFolderId,
 		).toBe("root-folder-id");
+		expect(
+			await prisma.googleDeviceFlow.findUnique({
+				where: { id: "google-device-flow" },
+			}),
+		).toBeNull();
 	});
 
 	it("refreshes google access tokens from the stored refresh token", async () => {
