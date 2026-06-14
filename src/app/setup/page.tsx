@@ -1,4 +1,13 @@
 import {
+	CheckCircle2,
+	ExternalLink,
+	KeyRound,
+	Link2,
+	LockKeyhole,
+	ShieldCheck,
+} from "lucide-react";
+
+import {
 	clearGoogleConnectionAction,
 	clearMoodleCredentialsAction,
 	pollGoogleDeviceFlowAction,
@@ -8,6 +17,7 @@ import {
 	startGoogleDeviceFlowAction,
 	testMoodleConnectionAction,
 } from "~/app/actions";
+import { PendingButton, SecretInput } from "~/app/form-feedback";
 import { PageHeader } from "~/app/page-header";
 import { StatusPill } from "~/app/status-pill";
 import {
@@ -23,49 +33,79 @@ import { Textarea } from "~/components/ui/textarea";
 import { loadSetupPageData } from "~/server/app-state";
 import { db } from "~/server/db";
 
-const buttonClass =
-	"inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-transparent px-2.5 font-medium text-sm outline-none transition-all focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
+function formatDate(value: Date | null | undefined) {
+	if (!value) {
+		return "Not yet";
+	}
 
-const primaryButtonClass = `${buttonClass} bg-primary text-primary-foreground hover:bg-primary/80`;
-const outlineButtonClass = `${buttonClass} border-border bg-background text-foreground hover:bg-muted`;
-const secondaryButtonClass = `${buttonClass} bg-secondary text-secondary-foreground hover:bg-[color-mix(in_oklch,var(--secondary),var(--foreground)_5%)]`;
+	return new Intl.DateTimeFormat("en-GB", {
+		dateStyle: "medium",
+		timeStyle: "short",
+	}).format(value);
+}
+
+function SavedNotice({
+	children,
+	enabled,
+}: {
+	children: React.ReactNode;
+	enabled: boolean;
+}) {
+	return (
+		<div
+			className={
+				enabled
+					? "flex items-start gap-2 rounded-md border border-emerald-100 bg-emerald-50 px-3 py-2 text-emerald-800 text-xs"
+					: "flex items-start gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-slate-600 text-xs"
+			}
+		>
+			<CheckCircle2
+				className={
+					enabled
+						? "mt-0.5 size-4 shrink-0"
+						: "mt-0.5 size-4 shrink-0 text-slate-400"
+				}
+			/>
+			<p>{enabled ? children : "Complete this step to enable sync."}</p>
+		</div>
+	);
+}
 
 export default async function SetupPage() {
 	const data = await loadSetupPageData(db);
 
 	return (
-		<div className="space-y-6">
+		<div className="space-y-5">
 			<PageHeader
-				description="Configure Moodle credentials, Google Drive device authorization, and the daily sync defaults."
+				description="Configure Moodle and Google Drive connections."
 				title="Setup"
 			/>
 
 			<div className="grid gap-4 xl:grid-cols-2">
-				<Card>
-					<CardHeader>
-						<CardTitle>Moodle Settings</CardTitle>
-						<CardDescription>
-							Store DHBW Moodle login details and verify the mobile token flow.
-						</CardDescription>
-					</CardHeader>
-					<CardContent className="space-y-4">
-						<div className="flex items-center justify-between">
+				<Card className="rounded-lg border-slate-200 bg-white shadow-sm">
+					<CardHeader className="border-slate-100 border-b">
+						<div className="flex items-center justify-between gap-3">
+							<CardTitle className="flex items-center gap-2 text-sm">
+								<span className="grid size-7 place-items-center rounded-full bg-orange-50 text-orange-600">
+									m
+								</span>
+								Moodle Settings
+							</CardTitle>
 							<StatusPill
 								status={data.moodle.credentialsSaved ? "Connected" : null}
 							/>
-							<p className="text-slate-500 text-sm">
-								Last refresh:{" "}
-								{data.moodle.tokenUpdatedAt
-									? new Intl.DateTimeFormat("en-GB", {
-											dateStyle: "medium",
-											timeStyle: "short",
-										}).format(data.moodle.tokenUpdatedAt)
-									: "Not yet"}
-							</p>
 						</div>
+						<CardDescription>
+							Last verified: {formatDate(data.moodle.tokenUpdatedAt)}
+						</CardDescription>
+					</CardHeader>
+					<CardContent className="space-y-4">
+						<SavedNotice enabled={data.moodle.credentialsSaved}>
+							Moodle credentials are encrypted and ready for sync.
+						</SavedNotice>
 
-						<form action={saveMoodleCredentialsAction} className="space-y-4">
-							<div className="space-y-2">
+						<form action={saveMoodleCredentialsAction} className="space-y-3">
+							<div className="space-y-1.5">
 								<Label htmlFor="moodle-base-url">Base URL</Label>
 								<Input
 									defaultValue={data.moodle.baseUrl}
@@ -74,7 +114,7 @@ export default async function SetupPage() {
 									required
 								/>
 							</div>
-							<div className="space-y-2">
+							<div className="space-y-1.5">
 								<Label htmlFor="moodle-organization">Organization</Label>
 								<Input
 									defaultValue={data.moodle.organization}
@@ -83,137 +123,168 @@ export default async function SetupPage() {
 									required
 								/>
 							</div>
-							<div className="space-y-2">
+							<div className="space-y-1.5">
 								<Label htmlFor="moodle-username">Username</Label>
 								<Input
+									autoComplete="username"
 									defaultValue={data.moodle.username ?? ""}
 									id="moodle-username"
 									name="username"
 									required
 								/>
 							</div>
-							<div className="space-y-2">
+							<div className="space-y-1.5">
 								<Label htmlFor="moodle-password">Password</Label>
-								<Input
+								<SecretInput
+									autoComplete="current-password"
 									id="moodle-password"
 									name="password"
 									required
-									type="password"
+									revealedLabel="Moodle password"
 								/>
 							</div>
-							<div className="flex flex-wrap gap-3">
-								<button className={primaryButtonClass} type="submit">
+							<div className="flex flex-wrap gap-2 pt-1">
+								<PendingButton pendingLabel="Saving...">
+									<LockKeyhole className="size-4" />
 									Save Credentials
-								</button>
+								</PendingButton>
 							</div>
 						</form>
 
-						<div className="flex flex-wrap gap-3">
+						<div className="flex flex-wrap gap-2">
 							<form action={testMoodleConnectionAction}>
-								<button className={outlineButtonClass} type="submit">
+								<PendingButton pendingLabel="Testing..." variant="outline">
+									<ShieldCheck className="size-4" />
 									Test Moodle Login
-								</button>
+								</PendingButton>
 							</form>
 							<form action={clearMoodleCredentialsAction}>
-								<button className={secondaryButtonClass} type="submit">
+								<PendingButton pendingLabel="Clearing..." variant="secondary">
 									Clear Moodle Credentials
-								</button>
+								</PendingButton>
 							</form>
 						</div>
 					</CardContent>
 				</Card>
 
-				<Card>
-					<CardHeader>
-						<CardTitle>Google Drive Setup</CardTitle>
-						<CardDescription>
-							Store a device-flow client and connect the app-managed Drive root
-							folder.
-						</CardDescription>
-					</CardHeader>
-					<CardContent className="space-y-4">
-						<div className="flex items-center justify-between">
+				<Card className="rounded-lg border-slate-200 bg-white shadow-sm">
+					<CardHeader className="border-slate-100 border-b">
+						<div className="flex items-center justify-between gap-3">
+							<CardTitle className="flex items-center gap-2 text-sm">
+								<span className="grid size-7 place-items-center rounded-full bg-blue-50 text-primary">
+									<KeyRound className="size-4" />
+								</span>
+								Google Drive Setup
+							</CardTitle>
 							<StatusPill
 								status={data.google.hasRefreshToken ? "Connected" : null}
 							/>
-							<p className="text-slate-500 text-sm">
-								Account: {data.google.connectedEmail ?? "Not connected"}
-							</p>
 						</div>
+						<CardDescription>
+							Account: {data.google.connectedEmail ?? "Not connected"}
+						</CardDescription>
+					</CardHeader>
+					<CardContent className="space-y-4">
+						<SavedNotice enabled={data.google.hasRefreshToken}>
+							Google Drive is connected and can receive uploaded files.
+						</SavedNotice>
 
 						<form
 							action={saveGoogleClientCredentialsAction}
-							className="space-y-4"
+							className="space-y-3"
 						>
-							<div className="space-y-2">
+							<div className="space-y-1.5">
 								<Label htmlFor="google-client-id">Client ID</Label>
 								<Input
+									autoComplete="off"
 									defaultValue={data.google.clientId ?? ""}
 									id="google-client-id"
 									name="clientId"
 									required
 								/>
 							</div>
-							<div className="space-y-2">
-								<Label htmlFor="google-client-secret">Client secret</Label>
-								<Input
+							<div className="space-y-1.5">
+								<Label htmlFor="google-client-secret">Client Secret</Label>
+								<SecretInput
+									autoComplete="off"
 									id="google-client-secret"
 									name="clientSecret"
 									required
-									type="password"
+									revealedLabel="Google client secret"
 								/>
 							</div>
-							<button className={primaryButtonClass} type="submit">
+							<PendingButton pendingLabel="Saving...">
+								<LockKeyhole className="size-4" />
 								Save Google Client
-							</button>
+							</PendingButton>
 						</form>
 
-						<div className="flex flex-wrap gap-3">
+						<div className="flex flex-wrap gap-2">
 							<form action={startGoogleDeviceFlowAction}>
-								<button className={primaryButtonClass} type="submit">
+								<PendingButton pendingLabel="Starting...">
+									<Link2 className="size-4" />
 									Connect Google Drive
-								</button>
+								</PendingButton>
 							</form>
 							<form action={pollGoogleDeviceFlowAction}>
-								<button className={outlineButtonClass} type="submit">
-									Poll Device Flow
-								</button>
+								<PendingButton pendingLabel="Checking..." variant="outline">
+									Verify Device Flow
+								</PendingButton>
 							</form>
 							<form action={clearGoogleConnectionAction}>
-								<button className={secondaryButtonClass} type="submit">
-									Disconnect Google Drive
-								</button>
+								<PendingButton
+									pendingLabel="Disconnecting..."
+									variant="secondary"
+								>
+									Disconnect
+								</PendingButton>
 							</form>
 						</div>
 
 						{data.googleDeviceFlow ? (
-							<div className="space-y-3 rounded-2xl border border-blue-100 bg-blue-50/80 p-4 text-blue-900 text-sm">
-								<p className="font-medium">Device Flow (Recommended)</p>
-								<p className="mt-2">
-									User code:{" "}
-									<span className="font-semibold tracking-[0.2em]">
-										{data.googleDeviceFlow.userCode}
-									</span>
-								</p>
-								<p className="mt-1">
-									Verification URL: {data.googleDeviceFlow.verificationUrl}
-								</p>
-								<a
-									className="inline-flex text-blue-700 underline underline-offset-4"
-									href={data.googleDeviceFlow.verificationUrl}
-									rel="noreferrer noopener"
-									target="_blank"
-								>
-									Open Google pairing page
-								</a>
-								<p>
-									After entering the code in Google, come back here and press
-									poll.
-								</p>
+							<div className="space-y-3 rounded-lg border border-blue-100 bg-blue-50 p-4 text-blue-950 text-sm">
+								<p className="font-semibold">Device Flow (Recommended)</p>
+								<div className="grid gap-3">
+									<div className="flex gap-3">
+										<span className="grid size-5 shrink-0 place-items-center rounded-full bg-primary font-semibold text-[11px] text-primary-foreground">
+											1
+										</span>
+										<div>
+											<p className="text-xs">
+												Enter this code on the Google device login page.
+											</p>
+											<p className="mt-2 rounded-md border border-blue-200 bg-white px-4 py-2 text-center font-semibold text-2xl text-primary tracking-[0.16em]">
+												{data.googleDeviceFlow.userCode}
+											</p>
+										</div>
+									</div>
+									<div className="flex gap-3">
+										<span className="grid size-5 shrink-0 place-items-center rounded-full bg-primary font-semibold text-[11px] text-primary-foreground">
+											2
+										</span>
+										<div className="min-w-0 flex-1">
+											<p className="text-xs">
+												Open the verification URL, finish Google approval, then
+												verify.
+											</p>
+											<a
+												className="mt-2 flex items-center justify-between gap-3 rounded-md border border-blue-200 bg-white px-3 py-2 font-medium text-primary text-xs hover:underline"
+												href={data.googleDeviceFlow.verificationUrl}
+												rel="noreferrer noopener"
+												target="_blank"
+											>
+												<span className="truncate">
+													{data.googleDeviceFlow.verificationUrl}
+												</span>
+												<ExternalLink className="size-3.5 shrink-0" />
+											</a>
+										</div>
+									</div>
+								</div>
 								<form action={pollGoogleDeviceFlowAction}>
-									<button className={primaryButtonClass} type="submit">
-										I finished pairing, poll now
-									</button>
+									<PendingButton className="w-full" pendingLabel="Verifying...">
+										I entered the code, verify now
+									</PendingButton>
 								</form>
 							</div>
 						) : null}
@@ -221,11 +292,11 @@ export default async function SetupPage() {
 				</Card>
 			</div>
 
-			<Card>
-				<CardHeader>
-					<CardTitle>Daily Sync Defaults</CardTitle>
+			<Card className="rounded-lg border-slate-200 bg-white shadow-sm">
+				<CardHeader className="border-slate-100 border-b">
+					<CardTitle className="text-sm">Daily Sync Defaults</CardTitle>
 					<CardDescription>
-						Manage the recurring schedule and the global allowed extension list.
+						Recurring sync time and global allowed file extensions.
 					</CardDescription>
 				</CardHeader>
 				<CardContent>
@@ -233,7 +304,7 @@ export default async function SetupPage() {
 						action={saveScheduleAction}
 						className="grid gap-4 lg:grid-cols-[1fr_180px_220px]"
 					>
-						<div className="space-y-2 lg:col-span-3">
+						<div className="space-y-1.5 lg:col-span-3">
 							<Label htmlFor="global-extensions">
 								Global allowed extensions
 							</Label>
@@ -244,17 +315,17 @@ export default async function SetupPage() {
 								placeholder="pdf, pptx, docx"
 							/>
 						</div>
-						<div className="space-y-2">
-							<Label htmlFor="schedule-enabled">Enable daily sync</Label>
+						<div className="flex items-center gap-2 pt-6">
 							<input
-								className="h-4 w-4 rounded border-slate-300"
+								className="size-4 rounded border-slate-300 accent-blue-600"
 								defaultChecked={data.app.scheduleEnabled}
 								id="schedule-enabled"
 								name="enabled"
 								type="checkbox"
 							/>
+							<Label htmlFor="schedule-enabled">Enable daily sync</Label>
 						</div>
-						<div className="space-y-2">
+						<div className="space-y-1.5">
 							<Label htmlFor="schedule-time">Run at</Label>
 							<Input
 								defaultValue={data.app.scheduleTime}
@@ -263,7 +334,7 @@ export default async function SetupPage() {
 								type="time"
 							/>
 						</div>
-						<div className="space-y-2">
+						<div className="space-y-1.5">
 							<Label htmlFor="schedule-timezone">Timezone</Label>
 							<Input
 								defaultValue={data.app.scheduleTimezone}
@@ -272,9 +343,9 @@ export default async function SetupPage() {
 							/>
 						</div>
 						<div className="lg:col-span-3">
-							<button className={primaryButtonClass} type="submit">
+							<PendingButton pendingLabel="Saving schedule...">
 								Save Schedule
-							</button>
+							</PendingButton>
 						</div>
 					</form>
 				</CardContent>

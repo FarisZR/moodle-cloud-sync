@@ -1,5 +1,5 @@
+import { PendingButton } from "~/app/form-feedback";
 import { Badge } from "~/components/ui/badge";
-import { Button } from "~/components/ui/button";
 import { cn } from "~/lib/utils";
 
 type HeaderAction = {
@@ -25,42 +25,47 @@ export function PageHeader({
 	title,
 }: PageHeaderProps) {
 	return (
-		<div className="rounded-[28px] border border-white/70 bg-white/90 px-6 py-5 shadow-[0_18px_50px_rgba(15,23,42,0.06)] backdrop-blur">
-			<div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-				<div className="space-y-2">
-					{badge ? (
-						<Badge className="bg-blue-50 text-blue-700" variant="secondary">
-							{badge}
-						</Badge>
-					) : null}
-					<div>
-						<h1 className="font-semibold text-3xl text-slate-950 tracking-tight">
-							{title}
-						</h1>
-						<p className="mt-1 max-w-2xl text-slate-500">{description}</p>
-					</div>
-				</div>
-
-				{actions.length > 0 ? (
-					<div className="flex flex-wrap items-center gap-3">
-						{actions.map((action) => (
-							<form action={action.formAction} key={action.id}>
-								<Button
-									className={cn(
-										action.variant === "default" &&
-											"shadow-blue-600/20 shadow-lg",
-									)}
-									name={action.name}
-									value={action.value}
-									variant={action.variant ?? "outline"}
-								>
-									{action.children}
-								</Button>
-							</form>
-						))}
-					</div>
+		<div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+			<div className="min-w-0 space-y-1">
+				{badge ? (
+					<Badge
+						className="gap-2 rounded-full bg-emerald-50 px-3 py-1 text-emerald-700"
+						variant="secondary"
+					>
+						<span className="size-2 rounded-full bg-emerald-500 [animation:sync-pulse_1.7s_ease-in-out_infinite]" />
+						{badge}
+					</Badge>
 				) : null}
+				<div>
+					<h1 className="font-semibold text-2xl text-foreground tracking-tight">
+						{title}
+					</h1>
+					<p className="mt-1 max-w-2xl text-muted-foreground text-sm">
+						{description}
+					</p>
+				</div>
 			</div>
+
+			{actions.length > 0 ? (
+				<div className="flex flex-wrap items-center gap-3">
+					{actions.map((action) => (
+						<form action={action.formAction} key={action.id}>
+							<PendingButton
+								className={cn(
+									action.variant === "default" &&
+										"shadow-[0_8px_18px_rgba(37,99,235,0.18)]",
+								)}
+								name={action.name}
+								pendingLabel="Starting..."
+								value={action.value}
+								variant={action.variant ?? "outline"}
+							>
+								{action.children}
+							</PendingButton>
+						</form>
+					))}
+				</div>
+			) : null}
 		</div>
 	);
 }

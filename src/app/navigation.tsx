@@ -1,5 +1,3 @@
-import { headers } from "next/headers";
-
 import { AppShell } from "~/app/app-shell";
 
 export async function AppNavigation({
@@ -7,8 +5,5 @@ export async function AppNavigation({
 }: {
 	children: React.ReactNode;
 }) {
-	const headerStore = await headers();
-	const currentPath = headerStore.get("x-pathname") ?? "/";
-
-	return <AppShell currentPath={currentPath}>{children}</AppShell>;
+	return <AppShell>{children}</AppShell>;
 }

@@ -1,4 +1,12 @@
-import { PlayIcon, RefreshCcwIcon, StopCircleIcon } from "lucide-react";
+import {
+	CalendarClock,
+	CheckCircle2,
+	Clock3,
+	FolderSync,
+	PlayIcon,
+	RefreshCcwIcon,
+	StopCircleIcon,
+} from "lucide-react";
 
 import {
 	cancelSyncAction,
@@ -7,13 +15,7 @@ import {
 } from "~/app/actions";
 import { PageHeader } from "~/app/page-header";
 import { StatusPill } from "~/app/status-pill";
-import {
-	Card,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from "~/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { loadDashboardPageData } from "~/server/app-state";
 import { db } from "~/server/db";
 
@@ -30,9 +32,10 @@ function formatDate(value: Date | null | undefined) {
 
 export default async function DashboardPage() {
 	const data = await loadDashboardPageData(db);
+	const lastRun = data.lastRun;
 
 	return (
-		<div className="space-y-6">
+		<div className="space-y-5">
 			<PageHeader
 				actions={
 					data.isSyncRunning
@@ -74,150 +77,171 @@ export default async function DashboardPage() {
 							]
 				}
 				badge={data.isSyncRunning ? "Background sync active" : "Ready"}
-				description="Monitor Moodle and Google Drive connection health, background sync activity, and recent outcomes."
+				description="Monitor Moodle and Google Drive connections."
 				title="Dashboard"
 			/>
 
-			<div className="grid gap-4 lg:grid-cols-4">
-				<Card>
-					<CardHeader>
-						<CardDescription>Moodle connection</CardDescription>
-						<CardTitle>{data.moodle.baseUrl}</CardTitle>
+			<div className="grid gap-3 xl:grid-cols-4">
+				<Card className="rounded-lg border-slate-200 bg-white shadow-sm">
+					<CardHeader className="pb-1">
+						<CardTitle className="flex items-center gap-2 text-sm">
+							<span className="grid size-7 place-items-center rounded-full bg-orange-50 text-orange-600">
+								m
+							</span>
+							Moodle Connected
+						</CardTitle>
 					</CardHeader>
-					<CardContent className="space-y-2">
+					<CardContent className="space-y-3">
 						<StatusPill
 							status={data.moodle.credentialsSaved ? "Connected" : null}
 						/>
-						<p className="text-slate-500 text-sm">
-							User: {data.moodle.username ?? "Not saved"}
-						</p>
-						<p className="text-slate-500 text-sm">
-							Last token refresh: {formatDate(data.moodle.tokenUpdatedAt)}
-						</p>
+						<div className="grid gap-2 text-xs">
+							<div className="grid grid-cols-[70px_1fr] gap-2">
+								<span className="text-muted-foreground">Site URL</span>
+								<span className="truncate">{data.moodle.baseUrl}</span>
+							</div>
+							<div className="grid grid-cols-[70px_1fr] gap-2">
+								<span className="text-muted-foreground">User</span>
+								<span className="truncate">
+									{data.moodle.username ?? "Not saved"}
+								</span>
+							</div>
+						</div>
 					</CardContent>
 				</Card>
 
-				<Card>
-					<CardHeader>
-						<CardDescription>Google Drive</CardDescription>
-						<CardTitle>
-							{data.google.connectedEmail ?? "Not connected"}
+				<Card className="rounded-lg border-slate-200 bg-white shadow-sm">
+					<CardHeader className="pb-1">
+						<CardTitle className="flex items-center gap-2 text-sm">
+							<span className="grid size-7 place-items-center rounded-full bg-blue-50 text-blue-600">
+								<FolderSync className="size-4" />
+							</span>
+							Google Drive
 						</CardTitle>
 					</CardHeader>
-					<CardContent className="space-y-2">
+					<CardContent className="space-y-3">
 						<StatusPill
 							status={data.google.hasRefreshToken ? "Connected" : null}
 						/>
-						<p className="text-slate-500 text-sm">
-							Root folder: {data.google.driveRootFolderId ?? "Not created"}
-						</p>
-					</CardContent>
-				</Card>
-
-				<Card>
-					<CardHeader>
-						<CardDescription>Background sync</CardDescription>
-						<CardTitle>{data.isSyncRunning ? "Running" : "Idle"}</CardTitle>
-					</CardHeader>
-					<CardContent className="space-y-2">
-						<StatusPill status={data.app.activeRunStatus} />
-						<p className="text-slate-500 text-sm">
-							Processed: {data.app.activeRunProcessed} files
-						</p>
-						<p className="text-slate-500 text-sm">
-							Current course: {data.app.activeRunCourseName ?? "None"}
-						</p>
-					</CardContent>
-				</Card>
-
-				<Card>
-					<CardHeader>
-						<CardDescription>Schedule</CardDescription>
-						<CardTitle>
-							{data.app.scheduleEnabled ? data.app.scheduleTime : "Disabled"}
-						</CardTitle>
-					</CardHeader>
-					<CardContent className="space-y-2">
-						<p className="text-slate-500 text-sm">
-							Timezone: {data.app.scheduleTimezone}
-						</p>
-						<p className="text-slate-500 text-sm">
-							Next run: {formatDate(data.nextScheduledRun)}
-						</p>
-					</CardContent>
-				</Card>
-			</div>
-
-			<div className="grid gap-4 xl:grid-cols-[1.6fr_1fr]">
-				<Card>
-					<CardHeader>
-						<CardTitle>Recent Activity</CardTitle>
-						<CardDescription>
-							The latest sync attempts and their outcomes.
-						</CardDescription>
-					</CardHeader>
-					<CardContent className="space-y-4">
-						{data.recentRuns.length === 0 ? (
-							<p className="text-slate-500 text-sm">No sync runs yet.</p>
-						) : (
-							data.recentRuns.map((run) => (
-								<div
-									className="flex items-start justify-between gap-4 rounded-2xl border border-slate-100 bg-slate-50/80 px-4 py-3"
-									key={run.id}
-								>
-									<div>
-										<p className="font-medium text-slate-900">
-											{run.trigger.replaceAll("_", " ")}
-										</p>
-										<p className="text-slate-500 text-sm">
-											{formatDate(run.startedAt)}
-										</p>
-										<p className="mt-1 text-slate-500 text-sm">
-											Uploaded {run.filesUploaded}, updated {run.filesUpdated},
-											skipped {run.filesSkipped}
-										</p>
-									</div>
-									<StatusPill status={run.status} />
-								</div>
-							))
-						)}
-					</CardContent>
-				</Card>
-
-				<Card>
-					<CardHeader>
-						<CardTitle>Current State</CardTitle>
-						<CardDescription>
-							Latest summary and operator-visible errors.
-						</CardDescription>
-					</CardHeader>
-					<CardContent className="space-y-4 text-slate-600 text-sm">
-						<div>
-							<p className="font-medium text-slate-900">Last sync</p>
-							<p>
-								{data.lastRun
-									? formatDate(data.lastRun.startedAt)
-									: "No runs yet"}
-							</p>
-						</div>
-						<div>
-							<p className="font-medium text-slate-900">Last result</p>
-							<div className="mt-2">
-								<StatusPill status={data.lastRun?.status} />
+						<div className="grid gap-2 text-xs">
+							<div className="grid grid-cols-[70px_1fr] gap-2">
+								<span className="text-muted-foreground">Account</span>
+								<span className="truncate">
+									{data.google.connectedEmail ?? "Not connected"}
+								</span>
+							</div>
+							<div className="grid grid-cols-[70px_1fr] gap-2">
+								<span className="text-muted-foreground">Folder</span>
+								<span className="truncate">
+									{data.google.driveRootFolderId ?? "Not created"}
+								</span>
 							</div>
 						</div>
-						<div>
-							<p className="font-medium text-slate-900">Most recent error</p>
-							<p>
-								{data.app.lastError ??
-									data.moodle.lastError ??
-									data.google.lastError ??
-									"No active error"}
-							</p>
+					</CardContent>
+				</Card>
+
+				<Card className="rounded-lg border-slate-200 bg-white shadow-sm">
+					<CardHeader className="pb-1">
+						<CardTitle className="flex items-center gap-2 text-sm">
+							<span className="grid size-7 place-items-center rounded-full bg-blue-50 text-primary">
+								<Clock3 className="size-4" />
+							</span>
+							Last Sync
+						</CardTitle>
+					</CardHeader>
+					<CardContent className="space-y-3">
+						<StatusPill
+							status={data.isSyncRunning ? "RUNNING" : lastRun?.status}
+						/>
+						<div className="grid gap-2 text-xs">
+							<div className="grid grid-cols-[70px_1fr] gap-2">
+								<span className="text-muted-foreground">Today</span>
+								<span className="truncate">
+									{lastRun ? formatDate(lastRun.startedAt) : "Not yet"}
+								</span>
+							</div>
+							<div className="grid grid-cols-[70px_1fr] gap-2">
+								<span className="text-muted-foreground">Processed</span>
+								<span>{data.app.activeRunProcessed} files</span>
+							</div>
+						</div>
+					</CardContent>
+				</Card>
+
+				<Card className="rounded-lg border-slate-200 bg-white shadow-sm">
+					<CardHeader className="pb-1">
+						<CardTitle className="flex items-center gap-2 text-sm">
+							<span className="grid size-7 place-items-center rounded-full bg-blue-50 text-primary">
+								<CalendarClock className="size-4" />
+							</span>
+							Next Scheduled Sync
+						</CardTitle>
+					</CardHeader>
+					<CardContent className="space-y-3 text-xs">
+						<p className="font-semibold text-base">
+							{data.app.scheduleEnabled ? data.app.scheduleTime : "Disabled"}
+						</p>
+						<div className="grid gap-2">
+							<div className="grid grid-cols-[70px_1fr] gap-2">
+								<span className="text-muted-foreground">Next run</span>
+								<span>{formatDate(data.nextScheduledRun)}</span>
+							</div>
+							<div className="grid grid-cols-[70px_1fr] gap-2">
+								<span className="text-muted-foreground">Timezone</span>
+								<span>{data.app.scheduleTimezone}</span>
+							</div>
 						</div>
 					</CardContent>
 				</Card>
 			</div>
+
+			<Card className="rounded-lg border-slate-200 bg-white shadow-sm">
+				<CardHeader className="border-slate-100 border-b">
+					<div className="flex items-center justify-between">
+						<CardTitle className="text-sm">Recent Activity</CardTitle>
+						<a
+							className="font-medium text-primary text-xs hover:underline"
+							href="/logs"
+						>
+							View all logs
+						</a>
+					</div>
+				</CardHeader>
+				<CardContent className="pt-1">
+					{data.recentRuns.length === 0 ? (
+						<p className="py-8 text-center text-muted-foreground text-sm">
+							No sync runs yet.
+						</p>
+					) : (
+						<div className="divide-y divide-slate-100">
+							{data.recentRuns.map((run) => (
+								<div
+									className="grid gap-3 py-3 text-sm md:grid-cols-[1fr_170px_230px_auto] md:items-center"
+									key={run.id}
+								>
+									<div className="flex items-center gap-3">
+										<CheckCircle2 className="size-4 text-emerald-600" />
+										<p className="font-medium text-foreground">
+											Sync{" "}
+											{run.status === "SUCCESS"
+												? "completed successfully"
+												: run.trigger.replaceAll("_", " ").toLowerCase()}
+										</p>
+									</div>
+									<p className="text-muted-foreground text-xs">
+										{formatDate(run.startedAt)}
+									</p>
+									<p className="text-muted-foreground text-xs">
+										Uploaded {run.filesUploaded}, updated {run.filesUpdated},
+										skipped {run.filesSkipped}
+									</p>
+									<StatusPill status={run.status} />
+								</div>
+							))}
+						</div>
+					)}
+				</CardContent>
+			</Card>
 		</div>
 	);
 }

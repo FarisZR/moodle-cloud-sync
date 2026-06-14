@@ -1,169 +1,255 @@
+import { ChevronDown, ExternalLink, FileText, Folder } from "lucide-react";
+
 import {
 	startCourseSyncAction,
 	updateCourseConfigAction,
 	updateSectionSelectionAction,
 } from "~/app/actions";
+import { AutoSubmitCheckbox, PendingButton } from "~/app/form-feedback";
 import { PageHeader } from "~/app/page-header";
-import { StatusPill } from "~/app/status-pill";
-import { Button } from "~/components/ui/button";
-import {
-	Card,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from "~/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { loadCoursesPageData } from "~/server/app-state";
 import { db } from "~/server/db";
 
+function splitExtensions(value: string) {
+	return value
+		.split(",")
+		.map((item) => item.trim())
+		.filter(Boolean);
+}
+
+function formatExtensions(extensions: string[]) {
+	return extensions.length > 0 ? extensions.join(", ") : "No file types";
+}
+
+function matchesExtension(filename: string, extensions: string[]) {
+	const extension = filename.split(".").pop()?.toLowerCase();
+	return extension ? extensions.includes(extension) : false;
+}
+
 export default async function CoursesPage() {
 	const data = await loadCoursesPageData(db);
 
 	return (
-		<div className="space-y-6">
+		<div className="space-y-5">
 			<PageHeader
-				description="Enable courses, choose sections, control file extensions, and trigger one-course sync runs."
+				description="Select courses and sections to sync to Google Drive."
 				title="Courses"
 			/>
 
-			<div className="space-y-4">
+			<div className="space-y-3">
 				{data.courses.length === 0 ? (
-					<Card>
-						<CardContent className="py-10 text-center text-slate-500">
+					<Card className="rounded-lg border-slate-200 bg-white shadow-sm">
+						<CardContent className="py-10 text-center text-muted-foreground">
 							No Moodle courses discovered yet. Run metadata refresh from the
 							dashboard after connecting Moodle.
 						</CardContent>
 					</Card>
 				) : (
-					data.courses.map(
-						({ course, matchingFilesCount, selectedSectionsCount }) => (
-							<Card key={course.id}>
-								<CardHeader>
-									<div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-										<div>
-											<CardTitle>{course.fullName}</CardTitle>
-											<CardDescription>{course.shortName}</CardDescription>
+					data.courses.map(({ course, selectedSectionsCount }) => {
+						const isEnabled = course.syncConfig?.enabled ?? false;
+						const activeExtensions =
+							(course.syncConfig?.useGlobalExtensions ?? true)
+								? data.globalExtensions
+								: splitExtensions(course.syncConfig?.extensionsCsv ?? "");
+						const extensionLabel = formatExtensions(activeExtensions);
+						const courseFiles = course.files ?? [];
+
+						return (
+							<Card
+								className="rounded-lg border-slate-200 bg-white shadow-sm"
+								key={course.id}
+							>
+								<CardHeader className="py-3">
+									<div className="grid gap-3 xl:grid-cols-[1fr_auto] xl:items-center">
+										<div className="flex min-w-0 items-center gap-3">
+											<ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+											<form
+												action={updateCourseConfigAction}
+												className="flex shrink-0 items-center"
+											>
+												<input
+													name="courseId"
+													type="hidden"
+													value={course.id}
+												/>
+												<input
+													name="extensions"
+													type="hidden"
+													value={course.syncConfig?.extensionsCsv ?? ""}
+												/>
+												{(course.syncConfig?.useGlobalExtensions ?? true) ? (
+													<input
+														name="useGlobalExtensions"
+														type="hidden"
+														value="on"
+													/>
+												) : null}
+												<AutoSubmitCheckbox
+													aria-label={`Enable ${course.shortName}`}
+													defaultChecked={isEnabled}
+													mode="switch"
+													name="enabled"
+												/>
+											</form>
+											<div className="min-w-0">
+												<CardTitle className="truncate text-sm">
+													{course.shortName} - {course.fullName}
+												</CardTitle>
+											</div>
 										</div>
-										<div className="flex flex-wrap items-center gap-3 text-slate-500 text-sm">
-											<StatusPill
-												status={course.syncConfig?.lastSyncStatus ?? null}
-											/>
-											<span>{selectedSectionsCount} sections selected</span>
-											<span>{matchingFilesCount} matching files</span>
+										<div className="flex flex-wrap items-center gap-4 text-muted-foreground text-xs">
+											<span className="inline-flex items-center gap-1">
+												<FileText className="size-3.5" />
+												{selectedSectionsCount} sections
+											</span>
+											<span className="inline-flex items-center gap-1">
+												<FileText className="size-3.5" />
+												{extensionLabel}
+											</span>
 											{course.driveFolder ? (
 												<a
-													className="text-blue-600 hover:underline"
+													className="inline-flex items-center gap-1 text-primary hover:underline"
 													href={course.driveFolder.folderUrl}
 													rel="noopener"
 													target="_blank"
 												>
-													Open Drive folder
+													<Folder className="size-3.5" />
+													Drive / {course.shortName}
+													<ExternalLink className="size-3" />
 												</a>
 											) : (
-												<span>No Drive folder yet</span>
+												<span className="inline-flex items-center gap-1">
+													<Folder className="size-3.5" />
+													No Drive folder yet
+												</span>
 											)}
+											<form action={startCourseSyncAction}>
+												<input
+													name="courseId"
+													type="hidden"
+													value={course.id}
+												/>
+												<PendingButton
+													className="h-8"
+													disabled={!isEnabled}
+													pendingLabel="Syncing..."
+													variant="outline"
+												>
+													Sync This Course
+												</PendingButton>
+											</form>
 										</div>
 									</div>
 								</CardHeader>
-								<CardContent className="space-y-6">
-									<form
-										action={updateCourseConfigAction}
-										className="grid gap-4 rounded-2xl border border-slate-100 bg-slate-50/70 p-4 lg:grid-cols-[160px_1fr_220px]"
-									>
-										<input name="courseId" type="hidden" value={course.id} />
-										<div className="space-y-2">
-											<Label htmlFor={`course-enabled-${course.id}`}>
-												Enable course
-											</Label>
-											<input
-												defaultChecked={course.syncConfig?.enabled ?? false}
-												id={`course-enabled-${course.id}`}
-												name="enabled"
-												type="checkbox"
-											/>
-										</div>
-										<div className="space-y-2">
-											<Label htmlFor={`course-extensions-${course.id}`}>
-												Allowed extensions
-											</Label>
-											<Input
-												defaultValue={course.syncConfig?.extensionsCsv ?? ""}
-												id={`course-extensions-${course.id}`}
-												name="extensions"
-												placeholder="pdf, zip, ipynb"
-											/>
-										</div>
-										<div className="space-y-2">
-											<Label htmlFor={`course-use-global-${course.id}`}>
-												Use global file types
-											</Label>
-											<input
-												defaultChecked={
-													course.syncConfig?.useGlobalExtensions ?? true
-												}
-												id={`course-use-global-${course.id}`}
-												name="useGlobalExtensions"
-												type="checkbox"
-											/>
-										</div>
-										<div className="flex flex-wrap gap-3 lg:col-span-3">
-											<Button type="submit">Save Course Settings</Button>
-										</div>
-									</form>
 
-									<form action={startCourseSyncAction}>
-										<input name="courseId" type="hidden" value={course.id} />
-										<Button type="submit" variant="outline">
-											Sync This Course
-										</Button>
-									</form>
-
-									<div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-										{course.sections.map((section) => (
+								{isEnabled ? (
+									<CardContent className="pt-0">
+										<div className="grid overflow-hidden rounded-lg border border-slate-200 md:grid-cols-[300px_1fr]">
 											<form
-												action={updateSectionSelectionAction}
-												className="rounded-2xl border border-slate-100 p-4"
-												key={section.id}
+												action={updateCourseConfigAction}
+												className="space-y-3 bg-white p-4 md:border-slate-200 md:border-r"
 											>
 												<input
-													name="sectionId"
+													name="courseId"
 													type="hidden"
-													value={section.id}
+													value={course.id}
 												/>
-												<div className="flex items-start gap-3">
-													<input
-														className="mt-1 h-4 w-4 rounded border-slate-300"
-														defaultChecked={
-															section.syncConfig?.selected !== false
+												<input name="enabled" type="hidden" value="on" />
+												<div className="space-y-1.5">
+													<Label htmlFor={`course-extensions-${course.id}`}>
+														Allowed Extensions
+													</Label>
+													<Input
+														defaultValue={
+															course.syncConfig?.extensionsCsv ?? ""
 														}
-														name="selected"
-														type="checkbox"
+														id={`course-extensions-${course.id}`}
+														name="extensions"
+														placeholder="pdf, pptx, docx"
 													/>
-													<div className="space-y-1">
-														<p className="font-medium text-slate-900">
-															{section.name}
-														</p>
-														<p className="text-slate-500 text-sm">
-															Section {section.sectionIndex}
-														</p>
-													</div>
+													<p className="text-muted-foreground text-xs">
+														Comma-separated list of allowed file extensions.
+													</p>
 												</div>
-												<Button
-													className="mt-4"
-													type="submit"
-													variant="outline"
-												>
-													Save Section
-												</Button>
+												<div className="flex items-center justify-between gap-3">
+													<label className="flex items-center gap-2">
+														<input
+															className="size-4 rounded border-slate-300 accent-blue-600"
+															defaultChecked={
+																course.syncConfig?.useGlobalExtensions ?? true
+															}
+															name="useGlobalExtensions"
+															type="checkbox"
+														/>
+														<span className="font-medium text-sm">
+															Use global
+														</span>
+													</label>
+													<PendingButton
+														className="h-8 min-w-16"
+														pendingLabel="Saving..."
+														variant="outline"
+													>
+														Save
+													</PendingButton>
+												</div>
 											</form>
-										))}
-									</div>
-								</CardContent>
+
+											<div className="min-w-0 bg-white">
+												<div className="grid grid-cols-[1fr_140px] border-slate-200 border-b bg-slate-50 px-4 py-2 font-medium text-muted-foreground text-xs">
+													<span>Section</span>
+													<span>Matching Files</span>
+												</div>
+												<div className="divide-y divide-slate-100">
+													{course.sections.map((section) => {
+														const sectionMatchingFiles = courseFiles.filter(
+															(file) =>
+																file.sectionId === section.id &&
+																matchesExtension(
+																	file.filename,
+																	activeExtensions,
+																),
+														).length;
+
+														return (
+															<form
+																action={updateSectionSelectionAction}
+																className="grid grid-cols-[1fr_140px] items-center gap-3 px-4 py-2.5 text-sm"
+																key={section.id}
+															>
+																<input
+																	name="sectionId"
+																	type="hidden"
+																	value={section.id}
+																/>
+																<label className="flex min-w-0 items-center gap-3">
+																	<AutoSubmitCheckbox
+																		defaultChecked={
+																			section.syncConfig?.selected !== false
+																		}
+																		name="selected"
+																	/>
+																	<span className="truncate">
+																		{section.name}
+																	</span>
+																</label>
+																<span className="text-muted-foreground text-xs">
+																	{sectionMatchingFiles} files
+																</span>
+															</form>
+														);
+													})}
+												</div>
+											</div>
+										</div>
+									</CardContent>
+								) : null}
 							</Card>
-						),
-					)
+						);
+					})
 				)}
 			</div>
 		</div>
