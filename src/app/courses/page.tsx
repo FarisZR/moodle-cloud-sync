@@ -1,7 +1,6 @@
 import {
 	CheckCircle2,
 	ChevronDown,
-	ChevronUp,
 	FileText,
 	Folder,
 	Info,
@@ -20,6 +19,12 @@ import { CourseSearchControls } from "~/app/courses/course-search";
 import { CopyButton, ExtensionEditor } from "~/app/extension-controls";
 import { AutoSubmitCheckbox, PendingButton } from "~/app/form-feedback";
 import { PageHeader } from "~/app/page-header";
+import {
+	Accordion,
+	AccordionContent,
+	AccordionItem,
+	AccordionTrigger,
+} from "~/components/ui/accordion";
 import { Card, CardContent } from "~/components/ui/card";
 import { cn } from "~/lib/utils";
 import { loadCoursesPageData } from "~/server/app-state";
@@ -53,6 +58,12 @@ function countSectionFiles(
 			file.sectionId === sectionId &&
 			matchesExtension(file.filename, extensions),
 	).length;
+}
+
+function getSectionFiles<
+	TFile extends { filename: string; sectionId: string | null },
+>(files: TFile[], sectionId: string) {
+	return files.filter((file) => file.sectionId === sectionId);
 }
 
 function CourseBadge({
@@ -100,8 +111,13 @@ function MetaItem({
 	);
 }
 
-export default async function CoursesPage() {
+export default async function CoursesPage({
+	searchParams,
+}: {
+	searchParams?: Promise<{ expandedCourse?: string }>;
+} = {}) {
 	const data = await loadCoursesPageData(db);
+	const params = await searchParams;
 	const courses = [...data.courses].sort((a, b) => {
 		const aEnabled = a.course.syncConfig?.enabled ?? false;
 		const bEnabled = b.course.syncConfig?.enabled ?? false;
@@ -112,9 +128,9 @@ export default async function CoursesPage() {
 
 		return a.course.fullName.localeCompare(b.course.fullName);
 	});
-	const expandedCourseId =
-		courses.find(({ course }) => course.syncConfig?.enabled)?.course.id ??
-		courses[0]?.course.id;
+	const defaultExpandedCourse = params?.expandedCourse
+		? [`course-${params.expandedCourse}`]
+		: [];
 
 	return (
 		<div className="space-y-5">
@@ -135,7 +151,11 @@ export default async function CoursesPage() {
 						</form>
 					</div>
 
-					<div className="space-y-2">
+					<Accordion
+						className="space-y-2"
+						defaultValue={defaultExpandedCourse}
+						multiple
+					>
 						<Card
 							className="rounded-lg border-slate-200 bg-white shadow-sm"
 							data-course-search-empty
@@ -156,8 +176,6 @@ export default async function CoursesPage() {
 							courses.map(
 								({ course, matchingFilesCount, selectedSectionsCount }) => {
 									const isEnabled = course.syncConfig?.enabled ?? false;
-									const isExpanded =
-										isEnabled && course.id === expandedCourseId;
 									const activeExtensions =
 										(course.syncConfig?.useGlobalExtensions ?? true)
 											? data.globalExtensions
@@ -171,20 +189,27 @@ export default async function CoursesPage() {
 											: "enabled";
 
 									return (
-										<article
-											className={cn(
-												"overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm",
-												isExpanded &&
-													"shadow-[0_12px_32px_rgba(15,23,42,0.08)]",
-											)}
+										<AccordionItem
+											className="group/course overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm transition-shadow data-open:shadow-[0_12px_32px_rgba(15,23,42,0.08)]"
 											data-course-search={`${course.shortName} ${course.fullName}`}
 											key={course.id}
+											value={`course-${course.id}`}
 										>
-											<div className="grid gap-3 px-4 py-3 lg:grid-cols-[1fr_auto] lg:items-center">
-												<div className="flex min-w-0 items-start gap-4">
+											<div className="relative grid gap-3 px-4 py-3 transition-colors hover:bg-slate-50/70 lg:grid-cols-[1fr_auto] lg:items-center">
+												<AccordionTrigger
+													aria-label={`Toggle details for ${course.shortName}`}
+													className="absolute inset-0 z-0 rounded-none border-0 p-0 hover:no-underline focus-visible:ring-3"
+													headerClassName="contents"
+													hideIcon
+												>
+													<span className="sr-only">
+														Toggle course details for {course.shortName}
+													</span>
+												</AccordionTrigger>
+												<div className="pointer-events-none relative z-10 flex min-w-0 items-start gap-4">
 													<form
 														action={updateCourseConfigAction}
-														className="pt-0.5"
+														className="pointer-events-auto pt-0.5"
 													>
 														<input
 															name="courseId"
@@ -211,7 +236,7 @@ export default async function CoursesPage() {
 															name="enabled"
 														/>
 													</form>
-													<div className="min-w-0 space-y-2">
+													<div className="min-w-0 flex-1 space-y-2 pr-3">
 														<h2
 															className={cn(
 																"truncate font-semibold text-base",
@@ -249,7 +274,7 @@ export default async function CoursesPage() {
 													</div>
 												</div>
 
-												<div className="flex flex-wrap items-center gap-2 lg:justify-end">
+												<div className="pointer-events-none relative z-10 flex flex-wrap items-center gap-2 lg:justify-end">
 													<CourseBadge tone={statusTone}>
 														{!isEnabled
 															? "Disabled"
@@ -259,7 +284,7 @@ export default async function CoursesPage() {
 													</CourseBadge>
 													{course.driveFolder ? (
 														<a
-															className="inline-flex h-9 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 font-medium text-sm shadow-sm transition hover:bg-slate-50"
+															className="pointer-events-auto inline-flex h-9 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 font-medium text-sm shadow-sm transition hover:bg-slate-50"
 															href={course.driveFolder.folderUrl}
 															rel="noopener"
 															target="_blank"
@@ -274,6 +299,7 @@ export default async function CoursesPage() {
 																? startCourseSyncAction
 																: updateCourseConfigAction
 														}
+														className="pointer-events-auto"
 													>
 														<input
 															name="courseId"
@@ -313,200 +339,212 @@ export default async function CoursesPage() {
 															{isEnabled ? "Sync This Course" : "Enable Course"}
 														</PendingButton>
 													</form>
-													{isExpanded ? (
-														<ChevronUp className="size-4 text-slate-700" />
-													) : (
-														<ChevronDown className="size-4 text-slate-700" />
-													)}
+													<span className="grid size-8 place-items-center text-slate-600 transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] group-data-open/course:rotate-180">
+														<ChevronDown className="size-4" />
+													</span>
 												</div>
 											</div>
 
-											{isExpanded ? (
-												<div className="grid gap-3 border-slate-100 border-t px-4 pt-0 pb-4 lg:grid-cols-[420px_minmax(0,1fr)]">
-													<section className="rounded-lg border border-slate-200 p-4">
-														<h3 className="font-semibold text-base">
-															Course settings
-														</h3>
-														<div className="mt-5 space-y-4">
-															<div>
-																<p className="font-semibold text-xs">
-																	Sync status
-																</p>
-																<div className="mt-2 flex gap-2 text-sm">
-																	<span className="mt-1.5 size-2.5 shrink-0 rounded-full bg-emerald-500" />
-																	<p>
-																		Enabled - new matching files in selected
-																		sections will sync automatically.
-																	</p>
-																</div>
-															</div>
-
-															<form
-																action={updateCourseConfigAction}
-																className="space-y-4"
-															>
-																<input
-																	name="courseId"
-																	type="hidden"
-																	value={course.id}
-																/>
-																<input
-																	name="enabled"
-																	type="hidden"
-																	value="on"
-																/>
-																<div className="flex items-center justify-between border-slate-200 border-t pt-4">
-																	<p className="font-semibold text-sm">
-																		Use global file types
-																	</p>
-																	<AutoSubmitCheckbox
-																		defaultChecked={
-																			course.syncConfig?.useGlobalExtensions ??
-																			true
-																		}
-																		mode="switch"
-																		name="useGlobalExtensions"
-																	/>
-																</div>
-																<div className="space-y-3 border-slate-200 border-t pt-4">
-																	<p className="font-semibold text-sm">
-																		Allowed extensions
-																	</p>
-																	<div className="flex flex-wrap gap-2">
-																		<ExtensionEditor
-																			defaultValue={
-																				course.syncConfig?.useGlobalExtensions
-																					? activeExtensions.join(",")
-																					: (course.syncConfig?.extensionsCsv ??
-																						"")
-																			}
-																			name="extensions"
-																		/>
-																	</div>
-																	<p className="text-muted-foreground text-xs">
-																		Only files with these extensions will be
-																		uploaded for this course.
-																	</p>
-																</div>
-																<div className="space-y-2 border-slate-200 border-t pt-4">
-																	<p className="font-semibold text-sm">
-																		Google Drive folder
-																	</p>
-																	<div className="flex items-center justify-between gap-3">
-																		<a
-																			className="truncate font-medium text-primary text-sm hover:underline"
-																			href={
-																				course.driveFolder?.folderUrl ?? "#"
-																			}
-																			rel="noopener"
-																			target="_blank"
-																		>
-																			Moodle Study Sync / {course.shortName}
-																		</a>
-																		<CopyButton
-																			text={course.driveFolder?.folderUrl ?? ""}
-																		/>
-																	</div>
-																</div>
-															</form>
-
-															<div className="flex gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-3 text-emerald-900 text-sm">
-																<Info className="mt-0.5 size-5 shrink-0" />
+											<AccordionContent className="grid gap-3 border-slate-100 border-t px-4 pt-0 pb-4 lg:grid-cols-[420px_minmax(0,1fr)]">
+												<section className="rounded-lg border border-slate-200 p-4">
+													<h3 className="font-semibold text-base">
+														Course settings
+													</h3>
+													<div className="mt-5 space-y-4">
+														<div>
+															<p className="font-semibold text-xs">
+																Sync status
+															</p>
+															<div className="mt-2 flex gap-2 text-sm">
+																<span className="mt-1.5 size-2.5 shrink-0 rounded-full bg-emerald-500" />
 																<p>
-																	Disabling this course stops future syncs.
-																	Files already uploaded to Drive remain there.
+																	Enabled - new matching files in selected
+																	sections will sync automatically.
 																</p>
 															</div>
 														</div>
-													</section>
 
-													<section className="rounded-lg border border-slate-200 p-4">
-														<h3 className="font-semibold text-base">
-															Sections
-														</h3>
-														<div className="mt-4 overflow-hidden rounded-lg border border-slate-200">
-															<div className="grid grid-cols-[minmax(0,1fr)_112px] bg-slate-50 px-4 py-2 font-medium text-muted-foreground text-xs">
-																<span>Section</span>
-																<span>Matching files</span>
+														<form
+															action={updateCourseConfigAction}
+															className="space-y-4"
+														>
+															<input
+																name="courseId"
+																type="hidden"
+																value={course.id}
+															/>
+															<input name="enabled" type="hidden" value="on" />
+															<div className="flex items-center justify-between border-slate-200 border-t pt-4">
+																<p className="font-semibold text-sm">
+																	Use global file types
+																</p>
+																<AutoSubmitCheckbox
+																	defaultChecked={
+																		course.syncConfig?.useGlobalExtensions ??
+																		true
+																	}
+																	mode="switch"
+																	name="useGlobalExtensions"
+																/>
 															</div>
-															<div className="divide-y divide-slate-100">
-																{course.sections.map((section, index) => {
-																	const sectionMatchingFiles =
-																		countSectionFiles(
-																			courseFiles,
-																			section.id,
-																			activeExtensions,
-																		);
-																	const sampleFiles = courseFiles
-																		.filter(
-																			(file) =>
-																				file.sectionId === section.id &&
-																				matchesExtension(
-																					file.filename,
-																					activeExtensions,
-																				),
-																		)
-																		.slice(0, 3);
+															<div className="space-y-3 border-slate-200 border-t pt-4">
+																<p className="font-semibold text-sm">
+																	Allowed extensions
+																</p>
+																<div className="flex flex-wrap gap-2">
+																	<ExtensionEditor
+																		defaultValue={
+																			course.syncConfig?.useGlobalExtensions
+																				? activeExtensions.join(",")
+																				: (course.syncConfig?.extensionsCsv ??
+																					"")
+																		}
+																		name="extensions"
+																	/>
+																</div>
+																<p className="text-muted-foreground text-xs">
+																	Only files with these extensions will be
+																	uploaded for this course.
+																</p>
+															</div>
+															<div className="space-y-2 border-slate-200 border-t pt-4">
+																<p className="font-semibold text-sm">
+																	Google Drive folder
+																</p>
+																<div className="flex items-center justify-between gap-3">
+																	<a
+																		className="truncate font-medium text-primary text-sm hover:underline"
+																		href={course.driveFolder?.folderUrl ?? "#"}
+																		rel="noopener"
+																		target="_blank"
+																	>
+																		Moodle Study Sync / {course.shortName}
+																	</a>
+																	<CopyButton
+																		text={course.driveFolder?.folderUrl ?? ""}
+																	/>
+																</div>
+															</div>
+														</form>
 
-																	return (
-																		<div key={section.id}>
-																			<form
-																				action={updateSectionSelectionAction}
-																				className="grid grid-cols-[minmax(0,1fr)_112px] items-center gap-3 px-4 py-2.5 text-sm"
-																			>
-																				<input
-																					name="sectionId"
-																					type="hidden"
-																					value={section.id}
+														<div className="flex gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-3 text-emerald-900 text-sm">
+															<Info className="mt-0.5 size-5 shrink-0" />
+															<p>
+																Disabling this course stops future syncs. Files
+																already uploaded to Drive remain there.
+															</p>
+														</div>
+													</div>
+												</section>
+
+												<section className="rounded-lg border border-slate-200 p-4">
+													<h3 className="font-semibold text-base">Sections</h3>
+													<div className="mt-4 overflow-hidden rounded-lg border border-slate-200">
+														<div className="grid grid-cols-[minmax(0,1fr)_112px] bg-slate-50 px-4 py-2 font-medium text-muted-foreground text-xs">
+															<span>Section</span>
+															<span>Matching files</span>
+														</div>
+														<div className="divide-y divide-slate-100">
+															{course.sections.map((section) => {
+																const sectionMatchingFiles = countSectionFiles(
+																	courseFiles,
+																	section.id,
+																	activeExtensions,
+																);
+																const sectionFiles = getSectionFiles(
+																	courseFiles,
+																	section.id,
+																);
+
+																return (
+																	<div key={section.id}>
+																		<form
+																			action={updateSectionSelectionAction}
+																			className="grid grid-cols-[minmax(0,1fr)_112px] items-center gap-3 px-4 py-2.5 text-sm"
+																		>
+																			<input
+																				name="sectionId"
+																				type="hidden"
+																				value={section.id}
+																			/>
+																			<label className="flex min-w-0 items-center gap-3 font-medium">
+																				<AutoSubmitCheckbox
+																					defaultChecked={
+																						section.syncConfig?.selected !==
+																						false
+																					}
+																					name="selected"
 																				/>
-																				<label className="flex min-w-0 items-center gap-3 font-medium">
-																					<AutoSubmitCheckbox
-																						defaultChecked={
-																							section.syncConfig?.selected !==
-																							false
-																						}
-																						name="selected"
-																					/>
-																					<span className="truncate">
-																						{section.name}
-																					</span>
-																				</label>
-																				<span className="text-right text-muted-foreground">
-																					{sectionMatchingFiles} files
+																				<span className="truncate">
+																					{section.name}
 																				</span>
-																			</form>
-																			{index === 0 && sampleFiles.length > 0 ? (
-																				<div className="space-y-2 bg-blue-50/40 px-12 py-3 text-sm">
-																					{sampleFiles.map((file) => (
+																			</label>
+																			<span className="text-right text-muted-foreground">
+																				{sectionMatchingFiles} files
+																			</span>
+																		</form>
+																		{sectionFiles.length > 0 ? (
+																			<div
+																				className={cn(
+																					"space-y-1.5 bg-slate-50/75 px-12 py-3 text-sm",
+																					sectionFiles.length > 4 &&
+																						"max-h-44 overflow-y-auto pr-3",
+																				)}
+																			>
+																				{sectionFiles.map((file) => {
+																					const isMatchingFile =
+																						matchesExtension(
+																							file.filename,
+																							activeExtensions,
+																						);
+
+																					return (
 																						<div
-																							className="flex items-center gap-2 text-slate-700"
+																							className={cn(
+																								"grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-md px-2 py-1.5 transition-colors",
+																								isMatchingFile
+																									? "text-slate-700"
+																									: "text-slate-400 opacity-70",
+																							)}
 																							key={file.fileKey}
 																						>
-																							<FileText className="size-4 text-rose-500" />
+																							<FileText
+																								className={cn(
+																									"size-4",
+																									isMatchingFile
+																										? "text-rose-500"
+																										: "text-slate-300",
+																								)}
+																							/>
 																							<span className="truncate">
 																								{file.filename}
 																							</span>
+																							{isMatchingFile ? null : (
+																								<span className="rounded-md border border-slate-200 bg-white px-1.5 py-0.5 font-medium text-[11px] text-slate-400">
+																									Filtered
+																								</span>
+																							)}
 																						</div>
-																					))}
-																				</div>
-																			) : null}
-																		</div>
-																	);
-																})}
-															</div>
+																					);
+																				})}
+																			</div>
+																		) : null}
+																	</div>
+																);
+															})}
 														</div>
-														<p className="mt-4 text-muted-foreground text-xs">
-															Selected sections are included in future syncs.
-														</p>
-													</section>
-												</div>
-											) : null}
-										</article>
+													</div>
+													<p className="mt-4 text-muted-foreground text-xs">
+														Selected sections are included in future syncs.
+													</p>
+												</section>
+											</AccordionContent>
+										</AccordionItem>
 									);
 								},
 							)
 						)}
-					</div>
+					</Accordion>
 				</div>
 
 				<aside className="hidden xl:block">

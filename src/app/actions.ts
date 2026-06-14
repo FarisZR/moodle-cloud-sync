@@ -167,9 +167,12 @@ export async function saveScheduleAction(formData: FormData) {
 }
 
 export async function updateCourseConfigAction(formData: FormData) {
+	const courseId = Number(formData.get("courseId"));
+	const enabled = formData.get("enabled") === "on";
+
 	await updateCourseSyncConfig(db, {
-		courseId: Number(formData.get("courseId")),
-		enabled: formData.get("enabled") === "on",
+		courseId,
+		enabled,
 		extensions: String(formData.get("extensions") ?? "")
 			.split(",")
 			.map((value) => value.trim())
@@ -178,6 +181,10 @@ export async function updateCourseConfigAction(formData: FormData) {
 	});
 	revalidatePath("/courses");
 	revalidatePath("/");
+
+	if (enabled) {
+		redirect(`/courses?expandedCourse=${courseId}`);
+	}
 }
 
 export async function updateSectionSelectionAction(formData: FormData) {

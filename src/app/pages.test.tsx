@@ -174,6 +174,17 @@ describe("app pages", () => {
 
 		expect(html).toContain("Databases");
 		expect(html).toContain("Sync This Course");
+		expect(html).not.toContain("Week 1");
+	});
+
+	it("renders an expanded course from search params", async () => {
+		const { default: CoursesPage } = await import("~/app/courses/page");
+		const html = renderToStaticMarkup(
+			await CoursesPage({
+				searchParams: Promise.resolve({ expandedCourse: "42" }),
+			}),
+		);
+
 		expect(html).toContain("Week 1");
 	});
 
