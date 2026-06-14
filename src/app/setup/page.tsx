@@ -10,7 +10,6 @@ import {
 } from "~/app/actions";
 import { PageHeader } from "~/app/page-header";
 import { StatusPill } from "~/app/status-pill";
-import { Button } from "~/components/ui/button";
 import {
 	Card,
 	CardContent,
@@ -23,6 +22,13 @@ import { Label } from "~/components/ui/label";
 import { Textarea } from "~/components/ui/textarea";
 import { loadSetupPageData } from "~/server/app-state";
 import { db } from "~/server/db";
+
+const buttonClass =
+	"inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-transparent px-2.5 font-medium text-sm outline-none transition-all focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
+
+const primaryButtonClass = `${buttonClass} bg-primary text-primary-foreground hover:bg-primary/80`;
+const outlineButtonClass = `${buttonClass} border-border bg-background text-foreground hover:bg-muted`;
+const secondaryButtonClass = `${buttonClass} bg-secondary text-secondary-foreground hover:bg-[color-mix(in_oklch,var(--secondary),var(--foreground)_5%)]`;
 
 export default async function SetupPage() {
 	const data = await loadSetupPageData(db);
@@ -96,16 +102,22 @@ export default async function SetupPage() {
 								/>
 							</div>
 							<div className="flex flex-wrap gap-3">
-								<Button type="submit">Save Credentials</Button>
+								<button className={primaryButtonClass} type="submit">
+									Save Credentials
+								</button>
 							</div>
 						</form>
 
 						<div className="flex flex-wrap gap-3">
 							<form action={testMoodleConnectionAction}>
-								<Button variant="outline">Test Moodle Login</Button>
+								<button className={outlineButtonClass} type="submit">
+									Test Moodle Login
+								</button>
 							</form>
 							<form action={clearMoodleCredentialsAction}>
-								<Button variant="secondary">Clear Moodle Credentials</Button>
+								<button className={secondaryButtonClass} type="submit">
+									Clear Moodle Credentials
+								</button>
 							</form>
 						</div>
 					</CardContent>
@@ -151,23 +163,31 @@ export default async function SetupPage() {
 									type="password"
 								/>
 							</div>
-							<Button type="submit">Save Google Client</Button>
+							<button className={primaryButtonClass} type="submit">
+								Save Google Client
+							</button>
 						</form>
 
 						<div className="flex flex-wrap gap-3">
 							<form action={startGoogleDeviceFlowAction}>
-								<Button>Connect Google Drive</Button>
+								<button className={primaryButtonClass} type="submit">
+									Connect Google Drive
+								</button>
 							</form>
 							<form action={pollGoogleDeviceFlowAction}>
-								<Button variant="outline">Poll Device Flow</Button>
+								<button className={outlineButtonClass} type="submit">
+									Poll Device Flow
+								</button>
 							</form>
 							<form action={clearGoogleConnectionAction}>
-								<Button variant="secondary">Disconnect Google Drive</Button>
+								<button className={secondaryButtonClass} type="submit">
+									Disconnect Google Drive
+								</button>
 							</form>
 						</div>
 
 						{data.googleDeviceFlow ? (
-							<div className="rounded-2xl border border-blue-100 bg-blue-50/80 p-4 text-blue-900 text-sm">
+							<div className="space-y-3 rounded-2xl border border-blue-100 bg-blue-50/80 p-4 text-blue-900 text-sm">
 								<p className="font-medium">Device Flow (Recommended)</p>
 								<p className="mt-2">
 									User code:{" "}
@@ -178,6 +198,23 @@ export default async function SetupPage() {
 								<p className="mt-1">
 									Verification URL: {data.googleDeviceFlow.verificationUrl}
 								</p>
+								<a
+									className="inline-flex text-blue-700 underline underline-offset-4"
+									href={data.googleDeviceFlow.verificationUrl}
+									rel="noreferrer noopener"
+									target="_blank"
+								>
+									Open Google pairing page
+								</a>
+								<p>
+									After entering the code in Google, come back here and press
+									poll.
+								</p>
+								<form action={pollGoogleDeviceFlowAction}>
+									<button className={primaryButtonClass} type="submit">
+										I finished pairing, poll now
+									</button>
+								</form>
 							</div>
 						) : null}
 					</CardContent>
@@ -235,7 +272,9 @@ export default async function SetupPage() {
 							/>
 						</div>
 						<div className="lg:col-span-3">
-							<Button type="submit">Save Schedule</Button>
+							<button className={primaryButtonClass} type="submit">
+								Save Schedule
+							</button>
 						</div>
 					</form>
 				</CardContent>

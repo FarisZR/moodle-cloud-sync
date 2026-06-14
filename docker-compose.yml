@@ -1,0 +1,7 @@
+services:
+    moodle-study-sync:
+        ports:
+            - 3000:3000
+        volumes:
+            - ./data:/app/data
+        image: moodle-study-sync
