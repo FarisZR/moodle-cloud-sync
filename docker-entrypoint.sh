@@ -3,6 +3,6 @@ set -euo pipefail
 
 mkdir -p /app/data/temp /app/data/logs
 
-pnpm exec prisma db push
+./node_modules/.bin/prisma db push
 
-exec pnpm start
+exec ./node_modules/.bin/next start
