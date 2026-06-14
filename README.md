@@ -1,6 +1,10 @@
 # Moodle Study Sync
 
+![dashboard](docs/assets/dashboard.png) ![courses](docs/assets/courses.png) ![logs](docs/assets/logs.png) ![setup](docs/assets/setup.png)
+
 Self-hosted web app that syncs selected DHBW Moodle course files to Google Drive.
+
+it emulates the Moodle mobile token login flow to access course files and the Google device flow for Drive access. Syncs run on demand or on a schedule, with detailed logs and error handling.
 
 ## Stack
 
@@ -10,14 +14,6 @@ Self-hosted web app that syncs selected DHBW Moodle course files to Google Drive
 - Prisma 7 with SQLite
 - Google Drive device flow
 - Moodle mobile-token login flow
-
-## Commands
-
-- `pnpm dev`
-- `pnpm test`
-- `pnpm verify`
-- `pnpm build`
-- `pnpm verify:course-sync`
 
 ## Docs
 
