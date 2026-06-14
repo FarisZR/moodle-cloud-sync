@@ -6,24 +6,49 @@ describe("moodle client", () => {
 	it("logs in with a cookie-preserving session and parses launch tokens", async () => {
 		const fetchMock = vi
 			.fn()
-			.mockImplementationOnce(
-				async (input: RequestInfo | URL, init?: RequestInit) => {
-					expect(String(input)).toBe(
-						"https://moodle.example.test/simplesaml/module.php/core/loginuserpassorg",
-					);
-					expect(init?.method).toBe("POST");
-					expect(String(init?.body)).toContain(
-						"username=student%40example.test",
-					);
-					const headers = new Headers();
-					headers.append("set-cookie", "; Path=/");
-					headers.append("set-cookie", "novalue; Path=/");
-					headers.append(
-						"set-cookie",
-						"MoodleSession=abc123; Path=/; HttpOnly",
-					);
-					return new Response(null, { headers, status: 302 });
-				},
+			.mockResolvedValueOnce(
+				new Response(null, {
+					headers: {
+						location:
+							"https://moodle.example.test/simplesaml/module.php/multiauth/discovery?AuthState=state-1&source=Student",
+						"set-cookie":
+							"SimpleSAMLSessionID=ssp; Path=/; HttpOnly, MoodleSession=initial; Path=/; HttpOnly",
+					},
+					status: 303,
+				}),
+			)
+			.mockResolvedValueOnce(
+				new Response(null, {
+					headers: {
+						location:
+							"https://moodle.example.test/simplesaml/module.php/core/loginuserpassorg?AuthState=state-1",
+					},
+					status: 303,
+				}),
+			)
+			.mockResolvedValueOnce(
+				new Response(
+					'<form action="https://moodle.example.test/simplesaml/module.php/core/loginuserpassorg?AuthState=state-1"><input name="AuthState" value="state-1"></form>',
+					{ status: 200 },
+				),
+			)
+			.mockResolvedValueOnce(
+				new Response(null, {
+					headers: {
+						location:
+							"https://moodle.example.test/login/index.php?source=Student",
+						"set-cookie": "SimpleSAMLAuthToken=saml-auth; Path=/; HttpOnly",
+					},
+					status: 303,
+				}),
+			)
+			.mockResolvedValueOnce(
+				new Response(null, {
+					headers: {
+						"set-cookie": "MoodleSession=abc123; Path=/; HttpOnly",
+					},
+					status: 303,
+				}),
 			)
 			.mockImplementationOnce(
 				async (_input: RequestInfo | URL, init?: RequestInit) => {
@@ -55,8 +80,10 @@ describe("moodle client", () => {
 				username: "student@example.test",
 			}),
 		).toEqual({
+			moodleSession: "abc123",
 			passport: "passport-123",
 			privateToken: "private-token",
+			sessionStatus: 303,
 			wstoken: "ws-token",
 		});
 	});
@@ -66,7 +93,40 @@ describe("moodle client", () => {
 			baseUrl: "https://moodle.example.test/",
 			fetch: vi
 				.fn()
-				.mockResolvedValueOnce(new Response(null, { status: 302 }))
+				.mockResolvedValueOnce(
+					new Response(null, {
+						headers: {
+							location:
+								"https://moodle.example.test/simplesaml/module.php/multiauth/discovery?AuthState=state-1&source=Student",
+						},
+						status: 303,
+					}),
+				)
+				.mockResolvedValueOnce(
+					new Response(null, {
+						headers: {
+							location:
+								"https://moodle.example.test/simplesaml/module.php/core/loginuserpassorg?AuthState=state-1",
+						},
+						status: 303,
+					}),
+				)
+				.mockResolvedValueOnce(
+					new Response(
+						'<form action="https://moodle.example.test/simplesaml/module.php/core/loginuserpassorg?AuthState=state-1"><input name="AuthState" value="state-1"></form>',
+						{ status: 200 },
+					),
+				)
+				.mockResolvedValueOnce(
+					new Response(null, {
+						headers: {
+							location:
+								"https://moodle.example.test/login/index.php?source=Student",
+						},
+						status: 303,
+					}),
+				)
+				.mockResolvedValueOnce(new Response(null, { status: 303 }))
 				.mockResolvedValueOnce(new Response("<html></html>", { status: 200 })),
 			passportFactory: () => "passport-123",
 		});
@@ -77,7 +137,9 @@ describe("moodle client", () => {
 				password: "secret",
 				username: "student@example.test",
 			}),
-		).rejects.toThrow("Moodle mobile launch did not return a token location");
+		).rejects.toThrow(
+			"Moodle Student login did not return SimpleSAMLAuthToken",
+		);
 
 		const fileClient = createMoodleClient({
 			baseUrl: "https://moodle.example.test/",

@@ -4,7 +4,8 @@ WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ ca-certificates && rm -rf /var/lib/apt/lists/*
 
-COPY package.json pnpm-lock.yaml ./
+COPY package.json pnpm-lock.yaml prisma.config.ts ./
+COPY prisma ./prisma
 RUN corepack enable && pnpm install --frozen-lockfile
 
 COPY . .
@@ -37,11 +38,13 @@ COPY --from=builder /app/prisma.config.ts ./prisma.config.ts
 COPY --from=builder /app/src/generated ./src/generated
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/next.config.js ./next.config.js
+COPY docker-entrypoint.sh ./docker-entrypoint.sh
 
 RUN mkdir -p /app/data/temp /app/data/logs
+RUN chmod +x ./docker-entrypoint.sh
 
 VOLUME ["/app/data"]
 
 EXPOSE 3000
 
-CMD ["pnpm", "start"]
+ENTRYPOINT ["./docker-entrypoint.sh"]

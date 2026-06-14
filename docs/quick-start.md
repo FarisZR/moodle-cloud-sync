@@ -11,4 +11,21 @@
 9. Enable courses and sections.
 10. Run sync.
 
+## Real Moodle Verification
+
+Use this command to verify the real DHBW course flow for `KA-Alle aktuellen Kurse der Informatik`.
+
+```bash
+pnpm verify:course-sync
+```
+
+It will:
+
+1. read `secrets/moodle.txt`
+2. perform the real DHBW Student login flow
+3. refresh Moodle metadata
+4. enable `KA-Alle aktuellen Kurse der Informatik` (course id `44` when present)
+5. select only `Skript` and `Übungen`
+6. run a course-scoped sync and print the summary
+
 Persistent runtime data is stored under `APP_DATA_DIR`, which defaults to `./data`.

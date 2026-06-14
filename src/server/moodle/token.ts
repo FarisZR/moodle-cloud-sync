@@ -36,17 +36,24 @@ export function parseLaunchToken(input: {
 		"utf8",
 	);
 	const [siteId, wstoken, privateToken] = decoded.split(":::");
-	const expectedSiteId = input.verifySiteId
-		? input.verifySiteId(input.passport)
-		: createHash("md5")
-				.update(`${normalizeBaseUrl(input.baseUrl)}${input.passport}`)
-				.digest("hex");
+	const expectedSiteIds = input.verifySiteId
+		? [input.verifySiteId(input.passport)]
+		: [
+				createHash("md5")
+					.update(`${normalizeBaseUrl(input.baseUrl)}${input.passport}`)
+					.digest("hex"),
+				createHash("md5")
+					.update(
+						`${normalizeBaseUrl(input.baseUrl).replace(/\/$/, "")}${input.passport}`,
+					)
+					.digest("hex"),
+			];
 
 	if (!(siteId && wstoken)) {
 		throw new Error("Moodle launch token payload is invalid");
 	}
 
-	if (siteId !== expectedSiteId) {
+	if (!expectedSiteIds.includes(siteId)) {
 		throw new Error("Moodle launch token site id mismatch");
 	}
 

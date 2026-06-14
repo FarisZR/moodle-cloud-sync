@@ -11,6 +11,7 @@ type MoodleClientOptions = {
 	baseUrl: string;
 	fetch?: FetchLike;
 	passportFactory?: () => string;
+	studentSource?: string;
 	userAgent?: string;
 	verifySiteId?: (passport: string) => string;
 };
@@ -70,12 +71,17 @@ class CookieSession {
 
 		return response;
 	}
+
+	getCookie(name: string) {
+		return this.cookies.get(name) ?? null;
+	}
 }
 
 export function createMoodleClient(options: MoodleClientOptions) {
 	const baseUrl = normalizeBaseUrl(options.baseUrl);
 	const fetchImpl = options.fetch ?? fetch;
 	const passportFactory = options.passportFactory ?? createPassport;
+	const studentSource = options.studentSource ?? "Student";
 	const userAgent = options.userAgent ?? MOODLE_MOBILE_USER_AGENT;
 
 	async function authenticateWithCredentials(input: {
@@ -84,14 +90,52 @@ export function createMoodleClient(options: MoodleClientOptions) {
 		username: string;
 	}) {
 		const session = new CookieSession(fetchImpl, userAgent);
-		const loginUrl = new URL(
-			"simplesaml/module.php/core/loginuserpassorg",
-			baseUrl,
-		);
+		const loginUrl = new URL("login/index.php", baseUrl);
+		loginUrl.searchParams.set("source", studentSource);
 		const launchPassport = passportFactory();
 
-		await session.fetch(loginUrl, {
+		const initialLogin = await session.fetch(loginUrl, { redirect: "manual" });
+		const discoveryLocation = initialLogin.headers.get("location");
+
+		if (!discoveryLocation) {
+			throw new Error("Moodle login did not redirect to SimpleSAML discovery");
+		}
+
+		const discoveryUrl = new URL(discoveryLocation, baseUrl);
+		const selectedSourceResponse = await session.fetch(discoveryUrl, {
+			redirect: "manual",
+		});
+		const selectedSourceLocation =
+			selectedSourceResponse.headers.get("location");
+
+		if (!selectedSourceLocation) {
+			throw new Error(
+				"Moodle discovery did not redirect to the Student login form",
+			);
+		}
+
+		const loginUserPassUrl = new URL(selectedSourceLocation, baseUrl);
+		const authState = loginUserPassUrl.searchParams.get("AuthState");
+
+		if (!authState) {
+			throw new Error("Moodle Student login form did not include AuthState");
+		}
+
+		const loginUserPassPage = await session.fetch(loginUserPassUrl, {
+			redirect: "manual",
+		});
+		const loginPageHtml = await loginUserPassPage.text();
+		const formAction =
+			loginPageHtml.match(/<form[^>]*action=["']([^"']+)["']/i)?.[1] ??
+			loginUserPassUrl.toString();
+		const formAuthState =
+			loginPageHtml.match(/name="AuthState" value="([^"]+)"/i)?.[1] ??
+			authState;
+		const submitUrl = new URL(formAction, baseUrl);
+
+		const submitResponse = await session.fetch(submitUrl, {
 			body: new URLSearchParams({
+				AuthState: formAuthState,
 				organization: input.organization,
 				password: input.password,
 				username: input.username,
@@ -102,6 +146,34 @@ export function createMoodleClient(options: MoodleClientOptions) {
 			method: "POST",
 			redirect: "manual",
 		});
+
+		if (!submitResponse.headers.get("location")) {
+			throw new Error(
+				"Moodle credentials were not accepted by the Student login form",
+			);
+		}
+
+		if (!session.getCookie("SimpleSAMLAuthToken")) {
+			throw new Error(
+				"Moodle Student login did not return SimpleSAMLAuthToken",
+			);
+		}
+
+		const moodleSessionResponse = await session.fetch(
+			new URL(
+				submitResponse.headers.get("location") ?? "login/index.php",
+				baseUrl,
+			),
+			{
+				redirect: "manual",
+			},
+		);
+
+		const moodleSession = session.getCookie("MoodleSession");
+
+		if (!moodleSession) {
+			throw new Error("Moodle login did not yield a MoodleSession cookie");
+		}
 
 		const launchUrl = new URL("admin/tool/mobile/launch.php", baseUrl);
 		launchUrl.searchParams.set("passport", launchPassport);
@@ -125,8 +197,10 @@ export function createMoodleClient(options: MoodleClientOptions) {
 		});
 
 		return {
+			moodleSession,
 			passport: launchPassport,
 			privateToken,
+			sessionStatus: moodleSessionResponse.status,
 			wstoken,
 		};
 	}

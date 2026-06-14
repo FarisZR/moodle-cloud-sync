@@ -127,6 +127,7 @@ async function appendRunLog(
 		activeRunProcessed?: number;
 	},
 ) {
+	console.log(`[sync:${runId}] ${message}`);
 	const current = await prisma.syncRun.findUniqueOrThrow({
 		where: { id: runId },
 	});

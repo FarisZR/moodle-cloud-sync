@@ -20,6 +20,7 @@
 		"start": "next start",
 		"test": "vitest run --coverage",
 		"test:watch": "vitest",
+		"verify:course-sync": "tsx scripts/verify-course-sync-sync.ts",
 		"typecheck": "tsc --noEmit",
 		"verify": "pnpm check && pnpm typecheck && pnpm test"
 	},
@@ -62,6 +63,7 @@
 		"prisma": "^7.8.0",
 		"tailwindcss": "^4.3.1",
 		"typescript": "^6.0.3",
+		"tsx": "^4.22.4",
 		"vite": "^8.0.16",
 		"vite-tsconfig-paths": "^6.1.1",
 		"vitest": "^4.1.8"

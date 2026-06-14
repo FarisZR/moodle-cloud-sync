@@ -2,9 +2,9 @@ import path from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { readEnv } from "~/server/env";
+import { saveMoodleCredentials } from "~/server/moodle/service";
 import { createSecretStore } from "~/server/secrets";
 import { ensureSingletonRows, updateCourseSyncConfig } from "~/server/store";
-import { saveMoodleCredentials } from "~/server/moodle/service";
 import { requestSyncCancellation, runSync } from "~/server/sync/service";
 import {
 	createTestDatabase,
@@ -109,8 +109,13 @@ describe("sync service branches", () => {
 				})),
 				downloadFile: vi.fn(),
 				getCourseContents: vi.fn(async () => []),
-				getCourses: vi.fn(async () => [{ fullname: "Databases", id: 42, shortname: "DB", visible: 1 }]),
-				getSiteInfo: vi.fn(async () => ({ siteurl: "https://moodle.example.test", userid: 7 })),
+				getCourses: vi.fn(async () => [
+					{ fullname: "Databases", id: 42, shortname: "DB", visible: 1 },
+				]),
+				getSiteInfo: vi.fn(async () => ({
+					siteurl: "https://moodle.example.test",
+					userid: 7,
+				})),
 			}),
 			runIdFactory: () => "cancel-before-course",
 		});
