@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { startMetadataRefreshTask, startSyncTask } from "~/server/app-state";
 import { db } from "~/server/db";
 import { readEnv } from "~/server/env";
@@ -31,6 +32,10 @@ function revalidateApp() {
 	revalidatePath("/logs");
 }
 
+function getErrorMessage(error: unknown) {
+	return error instanceof Error ? error.message : "Unexpected error";
+}
+
 export async function saveMoodleCredentialsAction(formData: FormData) {
 	const secretStore = await createSecretStore(db, readEnv());
 	await saveMoodleCredentials(db, secretStore, {
@@ -49,8 +54,14 @@ export async function clearMoodleCredentialsAction() {
 
 export async function testMoodleConnectionAction() {
 	const secretStore = await createSecretStore(db, readEnv());
-	await testMoodleConnection(db, secretStore, readEnv());
+	let target = "/setup?moodleTest=success";
+	try {
+		await testMoodleConnection(db, secretStore, readEnv());
+	} catch (error) {
+		target = `/setup?moodleTest=error&moodleMessage=${encodeURIComponent(getErrorMessage(error))}`;
+	}
 	revalidateApp();
+	redirect(target);
 }
 
 export async function saveGoogleClientCredentialsAction(formData: FormData) {
@@ -75,8 +86,18 @@ export async function startGoogleDeviceFlowAction() {
 
 export async function pollGoogleDeviceFlowAction() {
 	const secretStore = await createSecretStore(db, readEnv());
-	await pollGoogleDeviceFlow(db, secretStore, readEnv());
+	let target = "/setup?googleVerify=success";
+	try {
+		const result = await pollGoogleDeviceFlow(db, secretStore, readEnv());
+		target =
+			result.status === "approved"
+				? "/setup?googleVerify=success"
+				: `/setup?googleVerify=${encodeURIComponent(result.status)}`;
+	} catch (error) {
+		target = `/setup?googleVerify=error&googleMessage=${encodeURIComponent(getErrorMessage(error))}`;
+	}
 	revalidateApp();
+	redirect(target);
 }
 
 export async function saveScheduleAction(formData: FormData) {

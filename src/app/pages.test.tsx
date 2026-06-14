@@ -148,6 +148,21 @@ describe("app pages", () => {
 		expect(html).not.toContain("ABCD-EFGH");
 	});
 
+	it("renders setup action feedback", async () => {
+		const { default: SetupPage } = await import("~/app/setup/page");
+		const html = renderToStaticMarkup(
+			await SetupPage({
+				searchParams: Promise.resolve({
+					googleVerify: "pending",
+					moodleTest: "success",
+				}),
+			}),
+		);
+
+		expect(html).toContain("Moodle connection works");
+		expect(html).toContain("Google approval is still pending");
+	});
+
 	it("renders the courses page", async () => {
 		const { default: CoursesPage } = await import("~/app/courses/page");
 		const html = renderToStaticMarkup(await CoursesPage());

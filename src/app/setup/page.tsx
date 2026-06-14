@@ -1,5 +1,7 @@
 import {
+	AlertCircle,
 	CheckCircle2,
+	Clock,
 	ExternalLink,
 	KeyRound,
 	Link2,
@@ -20,6 +22,7 @@ import {
 import { PendingButton, SecretInput } from "~/app/form-feedback";
 import { PageHeader } from "~/app/page-header";
 import { StatusPill } from "~/app/status-pill";
+import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert";
 import {
 	Card,
 	CardContent,
@@ -71,11 +74,129 @@ function SavedNotice({
 	);
 }
 
-export default async function SetupPage() {
+function ResultAlert({
+	description,
+	status,
+	title,
+}: {
+	description: string;
+	status: "error" | "pending" | "success";
+	title: string;
+}) {
+	const Icon =
+		status === "success"
+			? CheckCircle2
+			: status === "pending"
+				? Clock
+				: AlertCircle;
+
+	return (
+		<Alert
+			className={
+				status === "success"
+					? "border-emerald-100 bg-emerald-50 text-emerald-800"
+					: status === "pending"
+						? "border-amber-100 bg-amber-50 text-amber-800"
+						: undefined
+			}
+			variant={status === "error" ? "destructive" : "default"}
+		>
+			<Icon className="size-4" />
+			<AlertTitle>{title}</AlertTitle>
+			<AlertDescription>{description}</AlertDescription>
+		</Alert>
+	);
+}
+
+function getMoodleTestFeedback(
+	params: Awaited<SetupPageProps["searchParams"]>,
+) {
+	if (params?.moodleTest === "success") {
+		return {
+			description: "Moodle accepted the saved credentials.",
+			status: "success" as const,
+			title: "Moodle connection works",
+		};
+	}
+
+	if (params?.moodleTest === "error") {
+		return {
+			description:
+				params.moodleMessage ?? "Moodle rejected the connection test.",
+			status: "error" as const,
+			title: "Moodle connection failed",
+		};
+	}
+
+	return null;
+}
+
+function getGoogleVerifyFeedback(
+	params: Awaited<SetupPageProps["searchParams"]>,
+) {
+	if (params?.googleVerify === "success") {
+		return {
+			description: "Google Drive approved the device flow and is connected.",
+			status: "success" as const,
+			title: "Google Drive connected",
+		};
+	}
+
+	if (params?.googleVerify === "pending") {
+		return {
+			description:
+				"Finish approval on the Google device page, then verify again.",
+			status: "pending" as const,
+			title: "Google approval is still pending",
+		};
+	}
+
+	if (params?.googleVerify === "slow_down") {
+		return {
+			description:
+				"Google asked for a slower polling rate. Wait a moment, then verify again.",
+			status: "pending" as const,
+			title: "Verification is still in progress",
+		};
+	}
+
+	if (params?.googleVerify === "expired") {
+		return {
+			description: "Start a new device flow and enter the new Google code.",
+			status: "error" as const,
+			title: "Google device code expired",
+		};
+	}
+
+	if (params?.googleVerify === "error") {
+		return {
+			description:
+				params.googleMessage ?? "Google Drive verification could not complete.",
+			status: "error" as const,
+			title: "Google verification failed",
+		};
+	}
+
+	return null;
+}
+
+type SetupPageProps = {
+	searchParams?: Promise<{
+		googleMessage?: string;
+		googleVerify?: string;
+		moodleMessage?: string;
+		moodleTest?: string;
+	}>;
+};
+
+export default async function SetupPage({ searchParams }: SetupPageProps = {}) {
 	const data = await loadSetupPageData(db);
+	const params = await searchParams;
 	const googleDeviceFlow = data.google.hasRefreshToken
 		? null
 		: data.googleDeviceFlow;
+	const moodleTestFeedback = getMoodleTestFeedback(params);
+	const googleVerifyFeedback = getGoogleVerifyFeedback(params);
 
 	return (
 		<div className="space-y-5">
@@ -167,6 +288,9 @@ export default async function SetupPage() {
 								</PendingButton>
 							</form>
 						</div>
+						{moodleTestFeedback ? (
+							<ResultAlert {...moodleTestFeedback} />
+						) : null}
 					</CardContent>
 				</Card>
 
@@ -243,6 +367,9 @@ export default async function SetupPage() {
 								</PendingButton>
 							</form>
 						</div>
+						{googleVerifyFeedback ? (
+							<ResultAlert {...googleVerifyFeedback} />
+						) : null}
 
 						{googleDeviceFlow ? (
 							<div className="space-y-3 rounded-lg border border-blue-100 bg-blue-50 p-4 text-blue-950 text-sm">
