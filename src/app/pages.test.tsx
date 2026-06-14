@@ -145,7 +145,7 @@ describe("app pages", () => {
 
 		expect(html).toContain("Moodle Settings");
 		expect(html).toContain("Google Drive Setup");
-		expect(html).toContain("ABCD-EFGH");
+		expect(html).not.toContain("ABCD-EFGH");
 	});
 
 	it("renders the courses page", async () => {

@@ -11,6 +11,7 @@ import {
 	loadLogsSnapshot,
 } from "~/server/store";
 import { runMetadataRefresh, runSync } from "~/server/sync/service";
+import { GoogleDeviceFlowStatus } from "../generated/prisma/enums";
 import type { PrismaClient } from "../generated/prisma/client";
 
 type BackgroundTaskMap = Map<string, Promise<unknown>>;
@@ -69,7 +70,12 @@ export async function loadSetupPageData(prisma: PrismaClient) {
 	return {
 		app,
 		google,
-		googleDeviceFlow,
+		googleDeviceFlow:
+			google.hasRefreshToken ||
+			googleDeviceFlow?.status !== GoogleDeviceFlowStatus.PENDING ||
+			googleDeviceFlow.expiresAt <= new Date()
+				? null
+				: googleDeviceFlow,
 		moodle,
 	};
 }

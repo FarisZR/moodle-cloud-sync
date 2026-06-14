@@ -258,10 +258,7 @@ export async function pollGoogleDeviceFlow<
 		},
 		where: { id: "google" },
 	});
-	await prisma.googleDeviceFlow.update({
-		data: { status: GoogleDeviceFlowStatus.APPROVED },
-		where: { id: flow.id },
-	});
+	await prisma.googleDeviceFlow.delete({ where: { id: flow.id } });
 
 	return result;
 }
