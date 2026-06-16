@@ -201,4 +201,51 @@ describe("moodle client", () => {
 			}),
 		);
 	});
+
+	it("backs off and retries moodle rate limits", async () => {
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValueOnce(
+				Response.json(
+					{ errorcode: "ratelimited", message: "Too many requests" },
+					{ status: 429 },
+				),
+			)
+			.mockResolvedValueOnce(
+				Response.json({ siteurl: "https://moodle.example.test" }),
+			);
+		const client = createMoodleClient({
+			baseUrl: "https://moodle.example.test/",
+			fetch: fetchMock,
+			rateLimitBaseDelayMs: 0,
+			rateLimitMaxRetries: 1,
+		});
+
+		await expect(client.getSiteInfo("ws-token")).resolves.toEqual({
+			siteurl: "https://moodle.example.test",
+		});
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+	});
+
+	it("throws a friendly error after rate limit retries are exhausted", async () => {
+		const client = createMoodleClient({
+			baseUrl: "https://moodle.example.test/",
+			fetch: vi.fn(async () =>
+				Response.json(
+					{ errorcode: "ratelimited", message: "Too many requests" },
+					{ headers: { "retry-after": "0" }, status: 429 },
+				),
+			),
+			rateLimitBaseDelayMs: 0,
+			rateLimitMaxRetries: 1,
+		});
+
+		await expect(client.getSiteInfo("ws-token")).rejects.toEqual(
+			expect.objectContaining({
+				errorCode: "ratelimited",
+				message: "Moodle is rate limiting requests: Too many requests",
+				name: "MoodleRateLimitError",
+			}),
+		);
+	});
 });

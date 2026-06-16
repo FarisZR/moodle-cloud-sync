@@ -93,6 +93,39 @@ describe("moodle service", () => {
 		);
 	});
 
+	it("records moodle test failures for the UI", async () => {
+		const env = readEnv({
+			APP_DATA_DIR: path.join(databaseDir, "data"),
+			APP_SECRET_KEY: "test-secret",
+			DATABASE_URL: databaseUrl,
+			NODE_ENV: "test",
+		});
+		const secretStore = await createSecretStore(prisma, env);
+		await saveMoodleCredentials(prisma, secretStore, {
+			baseUrl: "https://moodle.example.test",
+			organization: "example.org",
+			password: "secret-password",
+			username: "student@example.test",
+		});
+
+		await expect(
+			testMoodleConnection(prisma, secretStore, env, () => ({
+				authenticateWithCredentials: vi.fn(async () => {
+					throw new Error("Moodle is rate limiting requests.");
+				}),
+				getSiteInfo: vi.fn(),
+			})),
+		).rejects.toThrow("Moodle is rate limiting requests.");
+
+		await expect(
+			prisma.moodleConnection.findUniqueOrThrow({ where: { id: "moodle" } }),
+		).resolves.toEqual(
+			expect.objectContaining({
+				lastError: "Moodle is rate limiting requests.",
+			}),
+		);
+	});
+
 	it("refreshes course metadata into sqlite", async () => {
 		const env = readEnv({
 			APP_DATA_DIR: path.join(databaseDir, "data"),

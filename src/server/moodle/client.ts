@@ -11,6 +11,8 @@ type MoodleClientOptions = {
 	baseUrl: string;
 	fetch?: FetchLike;
 	passportFactory?: () => string;
+	rateLimitBaseDelayMs?: number;
+	rateLimitMaxRetries?: number;
 	studentSource?: string;
 	userAgent?: string;
 	verifySiteId?: (passport: string) => string;
@@ -27,49 +29,163 @@ export class MoodleApiError extends Error {
 	}
 }
 
+export class MoodleRateLimitError extends MoodleApiError {
+	constructor(
+		message?: string,
+		readonly retryAfterSeconds: number | null = null,
+		status = 429,
+	) {
+		super(
+			message
+				? `Moodle is rate limiting requests: ${message}`
+				: "Moodle is rate limiting requests. Wait a few minutes before trying again.",
+			"ratelimited",
+			status,
+		);
+		this.name = "MoodleRateLimitError";
+	}
+}
+
+function delay(ms: number) {
+	return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function parseRetryAfterSeconds(value: string | null) {
+	if (!value) {
+		return null;
+	}
+
+	const seconds = Number(value);
+
+	if (Number.isFinite(seconds) && seconds >= 0) {
+		return seconds;
+	}
+
+	const retryDate = new Date(value);
+
+	if (Number.isNaN(retryDate.getTime())) {
+		return null;
+	}
+
+	return Math.max(0, Math.ceil((retryDate.getTime() - Date.now()) / 1000));
+}
+
+function getRateLimitDelayMs(input: {
+	attempt: number;
+	baseDelayMs: number;
+	error: MoodleRateLimitError;
+}) {
+	if (input.error.retryAfterSeconds !== null) {
+		return input.error.retryAfterSeconds * 1000;
+	}
+
+	return input.baseDelayMs * 2 ** input.attempt;
+}
+
+function isRateLimitPayload(payload: {
+	errorcode?: string;
+	exception?: string;
+	message?: string;
+}) {
+	const combined = [payload.errorcode, payload.exception, payload.message]
+		.filter(Boolean)
+		.join(" ")
+		.toLowerCase();
+
+	return (
+		combined.includes("ratelimit") ||
+		combined.includes("rate limit") ||
+		combined.includes("too many requests") ||
+		combined.includes("throttle")
+	);
+}
+
+async function withRateLimitBackoff<T>(
+	operation: () => Promise<T>,
+	options: {
+		baseDelayMs: number;
+		maxRetries: number;
+	},
+) {
+	for (let attempt = 0; ; attempt += 1) {
+		try {
+			return await operation();
+		} catch (error) {
+			if (
+				!(error instanceof MoodleRateLimitError) ||
+				attempt >= options.maxRetries
+			) {
+				throw error;
+			}
+
+			await delay(
+				getRateLimitDelayMs({
+					attempt,
+					baseDelayMs: options.baseDelayMs,
+					error,
+				}),
+			);
+		}
+	}
+}
+
 class CookieSession {
 	private readonly cookies = new Map<string, string>();
 
 	constructor(
 		private readonly fetchImpl: FetchLike,
 		private readonly userAgent: string,
+		private readonly retryOptions: {
+			baseDelayMs: number;
+			maxRetries: number;
+		},
 	) {}
 
 	async fetch(input: string | URL, init: RequestInit = {}) {
-		const headers = new Headers(init.headers);
-		headers.set("user-agent", this.userAgent);
+		return withRateLimitBackoff(async () => {
+			const headers = new Headers(init.headers);
+			headers.set("user-agent", this.userAgent);
 
-		if (this.cookies.size > 0) {
-			headers.set(
-				"cookie",
-				[...this.cookies.entries()]
-					.map(([name, value]) => `${name}=${value}`)
-					.join("; "),
-			);
-		}
-
-		const response = await this.fetchImpl(input, { ...init, headers });
-
-		for (const cookie of response.headers.getSetCookie()) {
-			const [pair] = cookie.split(";", 1);
-
-			if (!pair) {
-				continue;
+			if (this.cookies.size > 0) {
+				headers.set(
+					"cookie",
+					[...this.cookies.entries()]
+						.map(([name, value]) => `${name}=${value}`)
+						.join("; "),
+				);
 			}
 
-			const separatorIndex = pair.indexOf("=");
+			const response = await this.fetchImpl(input, { ...init, headers });
 
-			if (separatorIndex === -1) {
-				continue;
+			if (response.status === 429) {
+				throw new MoodleRateLimitError(
+					undefined,
+					parseRetryAfterSeconds(response.headers.get("retry-after")),
+					response.status,
+				);
 			}
 
-			this.cookies.set(
-				pair.slice(0, separatorIndex),
-				pair.slice(separatorIndex + 1),
-			);
-		}
+			for (const cookie of response.headers.getSetCookie()) {
+				const [pair] = cookie.split(";", 1);
 
-		return response;
+				if (!pair) {
+					continue;
+				}
+
+				const separatorIndex = pair.indexOf("=");
+
+				if (separatorIndex === -1) {
+					continue;
+				}
+
+				this.cookies.set(
+					pair.slice(0, separatorIndex),
+					pair.slice(separatorIndex + 1),
+				);
+			}
+
+			return response;
+		}, this.retryOptions);
 	}
 
 	getCookie(name: string) {
@@ -81,6 +197,10 @@ export function createMoodleClient(options: MoodleClientOptions) {
 	const baseUrl = normalizeBaseUrl(options.baseUrl);
 	const fetchImpl = options.fetch ?? fetch;
 	const passportFactory = options.passportFactory ?? createPassport;
+	const retryOptions = {
+		baseDelayMs: options.rateLimitBaseDelayMs ?? 1000,
+		maxRetries: options.rateLimitMaxRetries ?? 3,
+	};
 	const studentSource = options.studentSource ?? "Student";
 	const userAgent = options.userAgent ?? MOODLE_MOBILE_USER_AGENT;
 
@@ -89,7 +209,7 @@ export function createMoodleClient(options: MoodleClientOptions) {
 		password: string;
 		username: string;
 	}) {
-		const session = new CookieSession(fetchImpl, userAgent);
+		const session = new CookieSession(fetchImpl, userAgent, retryOptions);
 		const loginUrl = new URL("login/index.php", baseUrl);
 		loginUrl.searchParams.set("source", studentSource);
 		const launchPassport = passportFactory();
@@ -220,41 +340,51 @@ export function createMoodleClient(options: MoodleClientOptions) {
 			body.set(key, String(value));
 		}
 
-		const response = await fetchImpl(
-			new URL("webservice/rest/server.php", baseUrl),
-			{
-				body,
-				headers: {
-					"content-type": "application/x-www-form-urlencoded",
-					"user-agent": userAgent,
+		return withRateLimitBackoff(async () => {
+			const response = await fetchImpl(
+				new URL("webservice/rest/server.php", baseUrl),
+				{
+					body,
+					headers: {
+						"content-type": "application/x-www-form-urlencoded",
+						"user-agent": userAgent,
+					},
+					method: "POST",
 				},
-				method: "POST",
-			},
-		);
-		const payload = (await response.json()) as {
-			errorcode?: string;
-			exception?: string;
-			message?: string;
-		};
-
-		if (!response.ok) {
-			throw new MoodleApiError(
-				payload.message ??
-					`Moodle API request failed with status ${response.status}`,
-				payload.errorcode ?? null,
-				response.status,
 			);
-		}
+			const payload = (await response.json().catch(() => ({}))) as {
+				errorcode?: string;
+				exception?: string;
+				message?: string;
+			};
 
-		if (payload.exception || payload.errorcode) {
-			throw new MoodleApiError(
-				payload.message ?? "Moodle API request failed",
-				payload.errorcode ?? null,
-				response.status,
-			);
-		}
+			if (response.status === 429 || isRateLimitPayload(payload)) {
+				throw new MoodleRateLimitError(
+					payload.message,
+					parseRetryAfterSeconds(response.headers.get("retry-after")),
+					response.status,
+				);
+			}
 
-		return payload as T;
+			if (!response.ok) {
+				throw new MoodleApiError(
+					payload.message ??
+						`Moodle API request failed with status ${response.status}`,
+					payload.errorcode ?? null,
+					response.status,
+				);
+			}
+
+			if (payload.exception || payload.errorcode) {
+				throw new MoodleApiError(
+					payload.message ?? "Moodle API request failed",
+					payload.errorcode ?? null,
+					response.status,
+				);
+			}
+
+			return payload as T;
+		}, retryOptions);
 	}
 
 	return {
@@ -264,9 +394,21 @@ export function createMoodleClient(options: MoodleClientOptions) {
 			const url = new URL(fileUrl);
 			url.searchParams.set("token", wstoken);
 
-			const response = await fetchImpl(url, {
-				headers: { "user-agent": userAgent },
-			});
+			const response = await withRateLimitBackoff(async () => {
+				const response = await fetchImpl(url, {
+					headers: { "user-agent": userAgent },
+				});
+
+				if (response.status === 429) {
+					throw new MoodleRateLimitError(
+						undefined,
+						parseRetryAfterSeconds(response.headers.get("retry-after")),
+						response.status,
+					);
+				}
+
+				return response;
+			}, retryOptions);
 
 			if (!response.ok) {
 				throw new MoodleApiError(

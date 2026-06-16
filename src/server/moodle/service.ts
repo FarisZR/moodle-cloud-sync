@@ -27,6 +27,10 @@ type MoodleMetadataClient = MoodleAuthClient & {
 	getCourses(wstoken: string, userId: number): Promise<unknown>;
 };
 
+function getErrorMessage(error: unknown) {
+	return error instanceof Error ? error.message : "Unexpected Moodle error";
+}
+
 export async function saveMoodleCredentials(
 	prisma: PrismaClient,
 	secretStore: SecretStore,
@@ -83,26 +87,37 @@ export async function testMoodleConnection(
 	}
 
 	const client = createClient(credentials.baseUrl);
-	const token = await client.authenticateWithCredentials({
-		organization: credentials.organization,
-		password: credentials.password,
-		username: credentials.username,
-	});
+	try {
+		const token = await client.authenticateWithCredentials({
+			organization: credentials.organization,
+			password: credentials.password,
+			username: credentials.username,
+		});
 
-	await updateStoredMoodleTokens(prisma, secretStore, token);
+		await updateStoredMoodleTokens(prisma, secretStore, token);
 
-	const siteInfo = await client.getSiteInfo(token.wstoken);
+		const siteInfo = await client.getSiteInfo(token.wstoken);
 
-	await prisma.moodleConnection.update({
-		data: {
-			lastError: null,
-			lastSuccessAt: new Date(),
-			lastTestedAt: new Date(),
-		},
-		where: { id: "moodle" },
-	});
+		await prisma.moodleConnection.update({
+			data: {
+				lastError: null,
+				lastSuccessAt: new Date(),
+				lastTestedAt: new Date(),
+			},
+			where: { id: "moodle" },
+		});
 
-	return siteInfo;
+		return siteInfo;
+	} catch (error) {
+		await prisma.moodleConnection.update({
+			data: {
+				lastError: getErrorMessage(error),
+				lastTestedAt: new Date(),
+			},
+			where: { id: "moodle" },
+		});
+		throw error;
+	}
 }
 
 export async function withMoodleToken<T, TClient extends MoodleAuthClient>(
@@ -174,109 +189,119 @@ export async function refreshMoodleMetadata<
 		createClient ??
 		((baseUrl: string) =>
 			createMoodleClient({ baseUrl }) as unknown as TClient);
-	return withMoodleToken(
-		prisma,
-		secretStore,
-		env,
-		async (client, wstoken) => {
-			const siteInfo = (await client.getSiteInfo(wstoken)) as {
-				userid: number;
-			};
-			const courses = (await client.getCourses(
-				wstoken,
-				siteInfo.userid,
-			)) as Array<{
-				fullname?: string;
-				fullName?: string;
-				id: number;
-				shortname: string;
-				visible?: boolean | number;
-			}>;
-			const courseIds =
-				options.courseIds && options.courseIds.length > 0
-					? new Set(options.courseIds)
-					: null;
-			let refreshedCourseCount = 0;
+	try {
+		return await withMoodleToken(
+			prisma,
+			secretStore,
+			env,
+			async (client, wstoken) => {
+				const siteInfo = (await client.getSiteInfo(wstoken)) as {
+					userid: number;
+				};
+				const courses = (await client.getCourses(
+					wstoken,
+					siteInfo.userid,
+				)) as Array<{
+					fullname?: string;
+					fullName?: string;
+					id: number;
+					shortname: string;
+					visible?: boolean | number;
+				}>;
+				const courseIds =
+					options.courseIds && options.courseIds.length > 0
+						? new Set(options.courseIds)
+						: null;
+				let refreshedCourseCount = 0;
 
-			for (const course of courses) {
-				if (courseIds && !courseIds.has(course.id)) {
-					continue;
-				}
-				refreshedCourseCount += 1;
+				for (const course of courses) {
+					if (courseIds && !courseIds.has(course.id)) {
+						continue;
+					}
+					refreshedCourseCount += 1;
 
-				await prisma.moodleCourse.upsert({
-					create: {
-						fullName: course.fullname ?? course.fullName ?? course.shortname,
-						id: course.id,
-						shortName: course.shortname,
-						visible:
-							typeof course.visible === "number"
-								? course.visible === 1
-								: (course.visible ?? null),
-					},
-					update: {
-						fullName: course.fullname ?? course.fullName ?? course.shortname,
-						lastMetadataRefreshAt: new Date(),
-						shortName: course.shortname,
-						visible:
-							typeof course.visible === "number"
-								? course.visible === 1
-								: (course.visible ?? null),
-					},
-					where: { id: course.id },
-				});
-				await prisma.courseSyncConfig.upsert({
-					create: { courseId: course.id },
-					update: {},
-					where: { courseId: course.id },
-				});
-
-				const contents = await client.getCourseContents(wstoken, course.id);
-				const mapped = mapCourseContents(course.id, contents as never[]);
-
-				for (const section of mapped.sections) {
-					await prisma.moodleSection.upsert({
-						create: section,
-						update: section,
-						where: { id: section.id },
+					await prisma.moodleCourse.upsert({
+						create: {
+							fullName: course.fullname ?? course.fullName ?? course.shortname,
+							id: course.id,
+							shortName: course.shortname,
+							visible:
+								typeof course.visible === "number"
+									? course.visible === 1
+									: (course.visible ?? null),
+						},
+						update: {
+							fullName: course.fullname ?? course.fullName ?? course.shortname,
+							lastMetadataRefreshAt: new Date(),
+							shortName: course.shortname,
+							visible:
+								typeof course.visible === "number"
+									? course.visible === 1
+									: (course.visible ?? null),
+						},
+						where: { id: course.id },
 					});
-					await prisma.sectionSyncConfig.upsert({
-						create: { sectionId: section.id },
+					await prisma.courseSyncConfig.upsert({
+						create: { courseId: course.id },
 						update: {},
-						where: { sectionId: section.id },
+						where: { courseId: course.id },
 					});
+
+					const contents = await client.getCourseContents(wstoken, course.id);
+					const mapped = mapCourseContents(course.id, contents as never[]);
+
+					for (const section of mapped.sections) {
+						await prisma.moodleSection.upsert({
+							create: section,
+							update: section,
+							where: { id: section.id },
+						});
+						await prisma.sectionSyncConfig.upsert({
+							create: { sectionId: section.id },
+							update: {},
+							where: { sectionId: section.id },
+						});
+					}
+
+					for (const module of mapped.modules) {
+						await prisma.moodleModule.upsert({
+							create: module,
+							update: module,
+							where: { id: module.id },
+						});
+					}
+
+					for (const file of mapped.files) {
+						await prisma.moodleFile.upsert({
+							create: file,
+							update: file,
+							where: { fileKey: file.fileKey },
+						});
+					}
 				}
 
-				for (const module of mapped.modules) {
-					await prisma.moodleModule.upsert({
-						create: module,
-						update: module,
-						where: { id: module.id },
-					});
-				}
+				await prisma.moodleConnection.update({
+					data: {
+						lastError: null,
+						lastSuccessAt: new Date(),
+					},
+					where: { id: "moodle" },
+				});
 
-				for (const file of mapped.files) {
-					await prisma.moodleFile.upsert({
-						create: file,
-						update: file,
-						where: { fileKey: file.fileKey },
-					});
-				}
-			}
-
-			await prisma.moodleConnection.update({
-				data: {
-					lastError: null,
-					lastSuccessAt: new Date(),
-				},
-				where: { id: "moodle" },
-			});
-
-			return {
-				courseCount: refreshedCourseCount,
-				status: SyncRunStatus.SUCCESS,
-			};
-		},
-		{ createClient: clientFactory },
-	);
+				return {
+					courseCount: refreshedCourseCount,
+					status: SyncRunStatus.SUCCESS,
+				};
+			},
+			{ createClient: clientFactory },
+		);
+	} catch (error) {
+		await prisma.moodleConnection.update({
+			data: {
+				lastError: getErrorMessage(error),
+			},
+			where: { id: "moodle" },
+		});
+		throw error;
+	}
 }

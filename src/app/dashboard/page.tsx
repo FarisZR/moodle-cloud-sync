@@ -1,4 +1,5 @@
 import {
+	AlertCircle,
 	CalendarClock,
 	CheckCircle2,
 	Clock3,
@@ -15,6 +16,7 @@ import {
 } from "~/app/actions";
 import { PageHeader } from "~/app/page-header";
 import { StatusPill } from "~/app/status-pill";
+import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { loadDashboardPageData } from "~/server/app-state";
 import { db } from "~/server/db";
@@ -82,6 +84,14 @@ export default async function DashboardPage() {
 				description="Monitor Moodle and Google Drive connections."
 				title="Dashboard"
 			/>
+
+			{data.moodle.lastError ? (
+				<Alert variant="destructive">
+					<AlertCircle className="size-4" />
+					<AlertTitle>Moodle connection needs attention</AlertTitle>
+					<AlertDescription>{data.moodle.lastError}</AlertDescription>
+				</Alert>
+			) : null}
 
 			<div className="grid gap-3 xl:grid-cols-4">
 				<Card className="rounded-lg border-slate-200 bg-white shadow-sm">

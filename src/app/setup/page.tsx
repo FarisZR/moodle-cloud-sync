@@ -328,6 +328,12 @@ export default async function SetupPage({ searchParams }: SetupPageProps = {}) {
 						</div>
 						{moodleTestFeedback ? (
 							<ResultAlert {...moodleTestFeedback} />
+						) : data.moodle.lastError ? (
+							<ResultAlert
+								description={data.moodle.lastError}
+								status="error"
+								title="Last Moodle attempt failed"
+							/>
 						) : null}
 					</CardContent>
 				</Card>
