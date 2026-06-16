@@ -168,6 +168,65 @@ describe("moodle service", () => {
 		expect(await prisma.sectionSyncConfig.findMany()).toHaveLength(1);
 	});
 
+	it("refreshes only requested course contents when scoped", async () => {
+		const env = readEnv({
+			APP_DATA_DIR: path.join(databaseDir, "data"),
+			APP_SECRET_KEY: "test-secret",
+			DATABASE_URL: databaseUrl,
+			NODE_ENV: "test",
+		});
+		const secretStore = await createSecretStore(prisma, env);
+		await saveMoodleCredentials(prisma, secretStore, {
+			baseUrl: "https://moodle.example.test",
+			organization: "example.org",
+			password: "secret-password",
+			username: "student@example.test",
+		});
+		await updateStoredMoodleTokens(prisma, secretStore, {
+			privateToken: "private-token",
+			wstoken: "ws-token",
+		});
+
+		const getCourseContents = vi.fn(async () => []);
+		const createClient = vi.fn(() => ({
+			authenticateWithCredentials: vi.fn(),
+			getCourseContents,
+			getCourses: vi.fn(async () => [
+				{
+					fullname: "Databases",
+					id: 42,
+					shortname: "DB",
+					visible: 1,
+				},
+				{
+					fullname: "Networks",
+					id: 43,
+					shortname: "NET",
+					visible: 1,
+				},
+			]),
+			getSiteInfo: vi.fn(async () => ({
+				siteurl: "https://moodle.example.test",
+				userid: 7,
+			})),
+		}));
+
+		const result = await refreshMoodleMetadata(
+			prisma,
+			secretStore,
+			env,
+			createClient,
+			{ courseIds: [42] },
+		);
+
+		expect(result.courseCount).toBe(1);
+		expect(getCourseContents).toHaveBeenCalledTimes(1);
+		expect(getCourseContents).toHaveBeenCalledWith("ws-token", 42);
+		expect(await prisma.moodleCourse.findMany()).toEqual([
+			expect.objectContaining({ id: 42, shortName: "DB" }),
+		]);
+	});
+
 	it("reauthenticates when moodle token is rejected once", async () => {
 		const env = readEnv({
 			APP_DATA_DIR: path.join(databaseDir, "data"),

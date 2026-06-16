@@ -4,6 +4,7 @@ import { readEnv } from "~/server/env";
 import type { SecretStore } from "~/server/secrets";
 import { runSync } from "~/server/sync/service";
 import type { PrismaClient } from "../generated/prisma/client";
+import { SyncTrigger } from "../generated/prisma/enums";
 
 export async function runSchedulerTick(
 	prisma: PrismaClient,
@@ -44,6 +45,7 @@ export async function runSchedulerTick(
 
 	await (options.runSync ?? runSync)(prisma, secretStore, env, {
 		runIdFactory: undefined,
+		trigger: SyncTrigger.SCHEDULED,
 	});
 
 	return { status: "triggered" as const };

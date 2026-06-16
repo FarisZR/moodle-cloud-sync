@@ -168,6 +168,7 @@ export async function refreshMoodleMetadata<
 	secretStore: SecretStore,
 	env: AppEnv,
 	createClient?: (baseUrl: string) => TClient,
+	options: { courseIds?: number[] } = {},
 ) {
 	const clientFactory =
 		createClient ??
@@ -191,8 +192,18 @@ export async function refreshMoodleMetadata<
 				shortname: string;
 				visible?: boolean | number;
 			}>;
+			const courseIds =
+				options.courseIds && options.courseIds.length > 0
+					? new Set(options.courseIds)
+					: null;
+			let refreshedCourseCount = 0;
 
 			for (const course of courses) {
+				if (courseIds && !courseIds.has(course.id)) {
+					continue;
+				}
+				refreshedCourseCount += 1;
+
 				await prisma.moodleCourse.upsert({
 					create: {
 						fullName: course.fullname ?? course.fullName ?? course.shortname,
@@ -262,7 +273,7 @@ export async function refreshMoodleMetadata<
 			});
 
 			return {
-				courseCount: courses.length,
+				courseCount: refreshedCourseCount,
 				status: SyncRunStatus.SUCCESS,
 			};
 		},

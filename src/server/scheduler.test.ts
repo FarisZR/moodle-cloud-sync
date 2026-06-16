@@ -74,6 +74,45 @@ describe("scheduler", () => {
 
 		expect(result.status).toBe("triggered");
 		expect(runSyncSpy).toHaveBeenCalledTimes(1);
+		const runSyncCalls = runSyncSpy.mock.calls as unknown as Array<
+			[unknown, unknown, unknown, unknown]
+		>;
+		expect(runSyncCalls[0]?.[3]).toEqual(
+			expect.objectContaining({ trigger: "SCHEDULED" }),
+		);
+	});
+
+	it("does not rerun after a scheduled sync has already run for the slot", async () => {
+		const env = readEnv({
+			APP_DATA_DIR: path.join(databaseDir, "data"),
+			APP_SECRET_KEY: "test-secret",
+			DATABASE_URL: databaseUrl,
+			NODE_ENV: "test",
+		});
+		const secretStore = await createSecretStore(prisma, env);
+		await saveScheduleSettings(prisma, {
+			enabled: true,
+			time: "02:00",
+			timezone: "Europe/Berlin",
+		});
+		await prisma.syncRun.create({
+			data: {
+				id: "scheduled-run",
+				logText: "done",
+				startedAt: new Date("2026-06-14T00:05:00.000Z"),
+				status: "SUCCESS",
+				trigger: "SCHEDULED",
+			},
+		});
+		const runSyncSpy = vi.fn();
+
+		const result = await runSchedulerTick(prisma, secretStore, env, {
+			now: new Date("2026-06-14T00:30:00.000Z"),
+			runSync: runSyncSpy,
+		});
+
+		expect(result).toEqual({ status: "not_due" });
+		expect(runSyncSpy).not.toHaveBeenCalled();
 	});
 
 	it("skips when another sync is already active", async () => {

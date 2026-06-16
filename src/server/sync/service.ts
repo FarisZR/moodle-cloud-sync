@@ -71,6 +71,7 @@ type SyncDependencies = {
 	now?: () => Date;
 	runIdFactory?: () => string;
 	scopeCourseId?: number;
+	trigger?: SyncTrigger;
 };
 
 type SyncSummary = {
@@ -209,6 +210,17 @@ async function isCancellationRequested(prisma: PrismaClient) {
 	return app.cancelRequestedAt !== null;
 }
 
+async function getEnabledKnownCourseIds(prisma: PrismaClient) {
+	const enabledCourses = await prisma.courseSyncConfig.findMany({
+		select: { courseId: true },
+		where: { enabled: true },
+	});
+
+	return enabledCourses.length > 0
+		? enabledCourses.map((course) => course.courseId)
+		: undefined;
+}
+
 export async function runMetadataRefresh(
 	prisma: PrismaClient,
 	secretStore: SecretStore,
@@ -270,7 +282,7 @@ export async function runSync(
 	const now = dependencies.now ?? (() => new Date());
 	await createRun(
 		prisma,
-		SyncTrigger.MANUAL,
+		dependencies.trigger ?? SyncTrigger.MANUAL,
 		runId,
 		dependencies.scopeCourseId,
 	);
@@ -284,8 +296,14 @@ export async function runSync(
 	};
 
 	try {
+		const refreshCourseIds =
+			dependencies.scopeCourseId !== undefined
+				? [dependencies.scopeCourseId]
+				: await getEnabledKnownCourseIds(prisma);
 		await appendRunLog(prisma, runId, "Refreshing Moodle metadata");
-		await refreshMoodleMetadata(prisma, secretStore, env, moodleClientFactory);
+		await refreshMoodleMetadata(prisma, secretStore, env, moodleClientFactory, {
+			courseIds: refreshCourseIds,
+		});
 		await appendRunLog(prisma, runId, "Ensuring Google Drive root folder");
 		const rootFolder = await ensureDriveRootFolder(
 			prisma,

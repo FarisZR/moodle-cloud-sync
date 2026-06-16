@@ -780,6 +780,11 @@ describe("sync service", () => {
 
 		expect(summary.filesFailed).toBe(1);
 		expect(summary.status).toBe("FAILED");
+		expect(moodleClient.getCourseContents).toHaveBeenCalledTimes(1);
+		expect(moodleClient.getCourseContents).toHaveBeenCalledWith(
+			"fresh-token",
+			42,
+		);
 		expect(googleClient.uploadFile).not.toHaveBeenCalled();
 	});
 });
